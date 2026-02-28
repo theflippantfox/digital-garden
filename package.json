@@ -25,9 +25,9 @@
   },
   "dependencies": {
     "@sveltejs/adapter-cloudflare": "^7.2.8",
-    "@sveltejs/adapter-node": "^5.5.4",
     "gray-matter": "^4.0.3",
-    "marked": "^11.0.0"
+    "marked": "^11.0.0",
+    "wrangler": "^4.69.0"
   },
   "type": "module"
 }
