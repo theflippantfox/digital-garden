@@ -1,0 +1,19 @@
+name            = "digital-garden-api"
+main            = "src/index.ts"
+compatibility_date = "2024-02-01"
+
+# KV namespace for caching compiled notes.
+# Create with: wrangler kv:namespace create "NOTES_CACHE"
+# Then paste the id below.
+[[kv_namespaces]]
+binding = "NOTES_CACHE"
+id      = "6f0d455f8ef6460688902370396bca85"
+
+# Secrets set via `wrangler secret put`:
+#   GITHUB_TOKEN       – fine-grained PAT, read-only Contents on your notes repo
+#   NOTES_REPO         – "your-username/your-notes-repo"
+#   ALLOWED_ORIGINS    – comma-separated origins, e.g. "https://yourname.github.io,http://localhost:5173"
+
+[vars]
+# Cache TTL in seconds (how long compiled notes are served from KV before re-fetching)
+CACHE_TTL = "120"

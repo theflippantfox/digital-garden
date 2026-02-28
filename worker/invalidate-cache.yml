@@ -1,0 +1,26 @@
+name: Invalidate Garden Cache
+
+# Add this file to your PRIVATE NOTES repository at:
+# .github/workflows/invalidate-garden.yml
+#
+# When you push new notes, it calls the Worker's invalidation endpoint
+# so the garden picks up fresh content within seconds.
+
+on:
+  push:
+    branches: [main]
+    paths: ['**.md']
+
+jobs:
+  invalidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bust Worker cache
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GARDEN_INVALIDATE_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.GARDEN_WORKER_URL }}/api/invalidate"
+
+      - name: Log result
+        run: echo "Cache invalidated at $(date)"

@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #161628; border-radius: 4px; }
+
+/* ── Grain texture overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  opacity: 0.5;
+}
+
+/* ── Background blob animations ── */
+@keyframes breathe1 {
+  from { border-radius: 58% 42% 54% 46% / 52% 48% 52% 48%; }
+  to   { border-radius: 54% 46% 60% 40% / 48% 54% 46% 52%; }
+}
+@keyframes breathe2 {
+  from { border-radius: 52% 48% 58% 42% / 46% 54% 46% 54%; }
+  to   { border-radius: 56% 44% 52% 48% / 52% 48% 52% 46%; }
+}
+@keyframes breatheFab {
+  from { border-radius: 52% 48% 54% 46% / 48% 54% 46% 52%; }
+  to   { border-radius: 56% 44% 50% 50% / 44% 56% 48% 52%; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Prose overrides for dark theme ── */
+.prose-garden pre {
+  background: #161628 !important;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+}
+.prose-garden code:not(pre code) {
+  background: #161628;
+  border: 1px solid rgba(255,255,255,0.07);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.85em;
+  color: #b44dff;
+}
+.prose-garden a.wikilink {
+  color: #b44dff;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(180,77,255,0.5);
+  transition: color 0.15s;
+}
+.prose-garden a.wikilink:hover { color: #00f0ff; border-bottom-color: rgba(0,240,255,0.5); }
+.prose-garden .wikilink--broken {
+  color: #4e4868;
+  border-bottom: 1px dotted #4e4868;
+  cursor: default;
+}
+.prose-garden blockquote {
+  border-left-color: #b44dff;
+}
