@@ -10,7 +10,8 @@ const config = {
       assets: 'build',
       fallback: '404.html',
       precompress: false,
-      strict: true
+      strict: true,
+      handleUnseenRoutes: 'warn'
     }),
     paths: { base: process.env.BASE_PATH ?? '' }
   }
