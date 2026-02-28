@@ -3,3 +3,11 @@ CLOUDFLARE.md
 .svelte-kit/
 pnpm-lock.yaml
 .env
+# Cloudflare Types
+/worker-configuration.d.ts
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
