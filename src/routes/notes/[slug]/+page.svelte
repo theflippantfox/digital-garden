@@ -12,7 +12,7 @@
 
   // Pebble-pill badge shape
   const BADGE_SHAPES: Record<Accent, string> = {
-    coral: "48px 50px 50px 48px / 50px 48px 48px 50px",
+    amber: "48px 50px 50px 48px / 50px 48px 48px 50px",
     violet: "50px 48px 50px 48px / 48px 50px 48px 50px",
     coral: "48px 50px 48px 50px / 50px 48px 50px 48px",
     cyan: "50px 50px 48px 50px / 48px 50px 50px 48px",
