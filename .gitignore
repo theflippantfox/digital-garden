@@ -2,4 +2,3 @@ node_modules/
 CLOUDFLARE.md
 .svelte-kit/
 .env
-pnpm-lock.yaml
