@@ -196,7 +196,7 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
   const accent = tagToAccent(primaryTag);
   const emoji = tagToEmoji(primaryTag);
   const status = parseStatus(fm.status);
-  const published = fm.published !== true;
+  const published = fm.published === true;
 
   const rawHtml = marked(content) as string;
   const html = resolveWikilinks(rawHtml, allSlugs);

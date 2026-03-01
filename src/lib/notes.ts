@@ -108,7 +108,7 @@ export function loadAllNotes(): Note[] {
     const emoji = (fm.emoji as string | undefined) ?? tagToEmoji(primaryTag);
 
     const status = parseStatus(fm.status);
-    const published = fm.published !== true;
+    const published = fm.published === true;
 
     const rawHtml = marked(content) as string;
     const html = resolveWikilinks(rawHtml, allSlugs);
