@@ -4,8 +4,6 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad, EntryGenerator } from './$types';
 import type { Note } from '$lib/types';
 
-export const prerender = true;
-
 export const entries: EntryGenerator = () => {
   if (API_MODE) return []; // dynamic mode — no prerendered pages
   return loadAllNotes().map(n => ({ slug: n.slug }));
