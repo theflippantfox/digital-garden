@@ -1,248 +1,175 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { goto } from "$app/navigation";
-  import { base } from "$app/paths";
-  import { ACCENT_STYLES } from "$lib/utils/tagColor";
-  import type { PageData } from "./$types";
-  import type { Accent } from "$lib/types";
+  import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
+  import { ACCENT_STYLES } from '$lib/utils/tagColor';
+  import type { PageData } from './$types';
+  import type { Accent } from '$lib/types';
 
   export let data: PageData;
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
   interface GNode {
-    id: string;
-    title: string;
-    hex: string;
+    id:     string;
+    title:  string;
+    hex:    string;
     accent: Accent;
-    emoji: string;
-    tag: string;
+    emoji:  string;
+    tag:    string;
     status: string;
     degree: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    fx: number | null;
-    fy: number | null;
+    x:  number; y:  number;
+    vx: number; vy: number;
+    fx: number | null; fy: number | null;
   }
   interface GLink {
-    source: GNode;
-    target: GNode;
+    source: string | GNode;
+    target: string | GNode;
   }
 
-  // ── Build graph data ─────────────────────────────────────────────────────────
+  // ── Build graph ───────────────────────────────────────────────────────────────
 
-  // Use `let` so Svelte can track reassignments for reactivity
-  let nodes: GNode[] = data.notes.map((n) => ({
-    id: n.slug,
-    title: n.title,
-    hex: ACCENT_STYLES[n.accent as Accent]?.hex ?? "#b44dff",
+  const nodes: GNode[] = data.notes.map(n => ({
+    id:     n.slug,
+    title:  n.title,
+    hex:    ACCENT_STYLES[n.accent as Accent]?.hex ?? '#b44dff',
     accent: n.accent as Accent,
-    emoji: n.emoji,
-    tag: n.primaryTag,
+    emoji:  n.emoji,
+    tag:    n.primaryTag,
     status: n.status,
-    degree: n.links + (n.backlinks?.length ?? 0),
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    fx: null,
-    fy: null,
+    degree: 0,
+    x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null,
   }));
 
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-  const linkSet = new Set<string>();
-  const links: GLink[] = [];
+  // Build edges bidirectionally from backlinks
+  const edgeSet  = new Set<string>();
+  const rawLinks: GLink[] = [];
+
   for (const note of data.notes) {
     for (const bl of note.backlinks ?? []) {
-      const a = note.slug < bl.slug ? note.slug : bl.slug;
-      const b = note.slug < bl.slug ? bl.slug : note.slug;
-      const key = `${a}→${b}`;
-      if (!linkSet.has(key) && nodeMap.has(a) && nodeMap.has(b)) {
-        linkSet.add(key);
-        links.push({ source: nodeMap.get(a)!, target: nodeMap.get(b)! });
+      if (!nodeMap.has(bl.slug)) continue;
+      const a   = note.slug < bl.slug ? note.slug : bl.slug;
+      const b   = note.slug < bl.slug ? bl.slug   : note.slug;
+      const key = `${a}|${b}`;
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key);
+        rawLinks.push({ source: a, target: b });
       }
     }
   }
 
-  const allTags = [...new Set(nodes.map((n) => n.tag))].sort();
+  // Degree from edge count
+  for (const l of rawLinks) {
+    const s = typeof l.source === 'string' ? l.source : (l.source as GNode).id;
+    const t = typeof l.target === 'string' ? l.target : (l.target as GNode).id;
+    nodeMap.get(s)!.degree++;
+    nodeMap.get(t)!.degree++;
+  }
 
-  // ── State ────────────────────────────────────────────────────────────────────
+  const allTags   = [...new Set(nodes.map(n => n.tag))].sort();
+  const totalEdges = rawLinks.length;
 
-  let svgEl: SVGSVGElement;
-  let width = 800;
-  let height = 600;
-  let searchQuery = "";
-  let highlightTag = "";
-  let hoveredNode: GNode | null = null;
-  let tooltipX = 0,
-    tooltipY = 0;
-  let tx = 0,
-    ty = 0,
-    scale = 1;
+  // ── Reactive state ────────────────────────────────────────────────────────────
+
+  let svgEl:   SVGSVGElement;
+  let simLinks: GLink[] = [];
+  let simNodes = nodes;
+
+  let width = 900, height = 650;
+  let tx = 0, ty = 0, scale = 1;
+  let searchQuery  = '';
+  let highlightTag = '';
+  let hoveredId:   string | null = null;
+  let tooltipX = 0, tooltipY = 0;
+  let rafId:       number;
+
   let draggingNode: GNode | null = null;
-  let isPanning = false;
-  let panStartX = 0,
-    panStartY = 0,
-    panOriginTx = 0,
-    panOriginTy = 0;
-  let rafId: number;
+  let isPanning  = false;
+  let panSX = 0, panSY = 0, panOX = 0, panOY = 0;
 
-  // ── Simulation constants ─────────────────────────────────────────────────────
-
-  const REPULSION = 3500;
-  const SPRING_LEN = 130;
-  const SPRING_K = 0.04;
-  const CENTER_K = 0.01;
-  const DAMPING = 0.82;
-  const SUBSTEPS = 3;
+  // ── Visual helpers ────────────────────────────────────────────────────────────
 
   function nodeRadius(n: GNode) {
-    return Math.max(7, Math.min(22, 7 + n.degree * 2.2));
+    return Math.max(5, Math.min(20, 5 + Math.sqrt(n.degree) * 4));
   }
 
-  function initPositions() {
-    const r = Math.min(width, height) * 0.32;
-    nodes.forEach((n, i) => {
-      const angle = (i / nodes.length) * Math.PI * 2;
-      n.x = width / 2 + r * Math.cos(angle) + (Math.random() - 0.5) * 60;
-      n.y = height / 2 + r * Math.sin(angle) + (Math.random() - 0.5) * 60;
-      n.vx = 0;
-      n.vy = 0;
-    });
-  }
-
-  function simStep() {
-    for (let iter = 0; iter < SUBSTEPS; iter++) {
-      // Repulsion
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        if (a.fx !== null) continue;
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          const dx = a.x - b.x || 0.01;
-          const dy = a.y - b.y || 0.01;
-          const d2 = dx * dx + dy * dy;
-          const d = Math.sqrt(d2) || 0.1;
-          const f = REPULSION / d2;
-          const fx = (dx / d) * f,
-            fy = (dy / d) * f;
-          a.vx += fx;
-          a.vy += fy;
-          if (b.fx === null) {
-            b.vx -= fx;
-            b.vy -= fy;
-          }
-        }
-      }
-      // Spring
-      for (const link of links) {
-        const a = link.source,
-          b = link.target;
-        const dx = b.x - a.x,
-          dy = b.y - a.y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 0.1;
-        const f = (d - SPRING_LEN) * SPRING_K;
-        const fx = (dx / d) * f,
-          fy = (dy / d) * f;
-        if (a.fx === null) {
-          a.vx += fx;
-          a.vy += fy;
-        }
-        if (b.fx === null) {
-          b.vx -= fx;
-          b.vy -= fy;
-        }
-      }
-      // Center gravity
-      const cx = width / 2,
-        cy = height / 2;
-      for (const n of nodes) {
-        if (n.fx !== null) continue;
-        n.vx += (cx - n.x) * CENTER_K;
-        n.vy += (cy - n.y) * CENTER_K;
-      }
-      // Integrate
-      for (const n of nodes) {
-        if (n.fx !== null) {
-          n.x = n.fx;
-          n.y = n.fy!;
-          continue;
-        }
-        n.vx *= DAMPING;
-        n.vy *= DAMPING;
-        n.x += n.vx;
-        n.y += n.vy;
-      }
+  $: neighborIds = (() => {
+    if (!hoveredId) return null;
+    const ids = new Set<string>([hoveredId]);
+    for (const l of simLinks) {
+      const s = (l.source as GNode).id;
+      const t = (l.target as GNode).id;
+      if (s === hoveredId) ids.add(t);
+      if (t === hoveredId) ids.add(s);
     }
-  }
+    return ids;
+  })();
 
-  // ── Reactive filter ──────────────────────────────────────────────────────────
-
-  $: activeNodeIds = (() => {
+  $: filteredIds = (() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q && !highlightTag) return null;
-    return new Set(
-      nodes
-        .filter(
-          (n) =>
-            (!q || n.title.toLowerCase().includes(q) || n.tag.includes(q)) &&
-            (!highlightTag || n.tag === highlightTag),
-        )
-        .map((n) => n.id),
+    return new Set(nodes
+      .filter(n =>
+        (!q || n.title.toLowerCase().includes(q) || n.tag.includes(q))
+        && (!highlightTag || n.tag === highlightTag)
+      )
+      .map(n => n.id)
     );
   })();
 
-  function nodeOpacity(n: GNode) {
-    return !activeNodeIds || activeNodeIds.has(n.id) ? 1 : 0.1;
-  }
-  function linkOpacity(l: GLink) {
-    if (!activeNodeIds) return 0.3;
-    return activeNodeIds.has(l.source.id) && activeNodeIds.has(l.target.id)
-      ? 0.5
-      : 0.04;
+  function nodeOpacity(n: GNode): number {
+    if (filteredIds && !filteredIds.has(n.id)) return 0.07;
+    if (neighborIds && !neighborIds.has(n.id)) return 0.15;
+    return 1;
   }
 
-  // ── Mouse interaction ────────────────────────────────────────────────────────
+  function edgeOpacity(l: GLink): number {
+    const s = (l.source as GNode).id, t = (l.target as GNode).id;
+    if (filteredIds && (!filteredIds.has(s) || !filteredIds.has(t))) return 0.03;
+    if (neighborIds && (!neighborIds.has(s) || !neighborIds.has(t))) return 0.06;
+    return hoveredId ? 0.9 : 0.35;
+  }
 
-  function svgPoint(e: MouseEvent) {
+  function edgeStroke(l: GLink): string {
+    if (!hoveredId || !neighborIds) return 'rgba(255,255,255,0.3)';
+    const s = (l.source as GNode).id, t = (l.target as GNode).id;
+    if (neighborIds.has(s) && neighborIds.has(t)) {
+      return (nodeMap.get(s === hoveredId ? t : s)?.hex) ?? '#b44dff';
+    }
+    return 'rgba(255,255,255,0.04)';
+  }
+
+  // ── Mouse ────────────────────────────────────────────────────────────────────
+
+  function svgPt(e: MouseEvent) {
     const r = svgEl.getBoundingClientRect();
-    return {
-      x: (e.clientX - r.left - tx) / scale,
-      y: (e.clientY - r.top - ty) / scale,
-    };
+    return { x: (e.clientX - r.left - tx) / scale, y: (e.clientY - r.top - ty) / scale };
   }
 
   function hitTest(e: MouseEvent): GNode | null {
-    const pt = svgPoint(e);
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const n = nodes[i],
-        r = nodeRadius(n) + 5;
-      const dx = pt.x - n.x,
-        dy = pt.y - n.y;
-      if (dx * dx + dy * dy < r * r) return n;
+    const pt = svgPt(e);
+    let best: GNode | null = null, bestD = Infinity;
+    for (const n of simNodes) {
+      const r  = nodeRadius(n) + 7;
+      const dx = pt.x - n.x, dy = pt.y - n.y, d = dx * dx + dy * dy;
+      if (d < r * r && d < bestD) { best = n; bestD = d; }
     }
-    return null;
+    return best;
   }
 
   function onMouseMove(e: MouseEvent) {
     if (draggingNode) {
       const r = svgEl.getBoundingClientRect();
       draggingNode.fx = (e.clientX - r.left - tx) / scale;
-      draggingNode.fy = (e.clientY - r.top - ty) / scale;
-      draggingNode.x = draggingNode.fx;
-      draggingNode.y = draggingNode.fy;
+      draggingNode.fy = (e.clientY - r.top  - ty) / scale;
       return;
     }
-    if (isPanning) {
-      tx = panOriginTx + (e.clientX - panStartX);
-      ty = panOriginTy + (e.clientY - panStartY);
-      return;
-    }
+    if (isPanning) { tx = panOX + (e.clientX - panSX); ty = panOY + (e.clientY - panSY); return; }
     const hit = hitTest(e);
-    hoveredNode = hit;
+    hoveredId = hit?.id ?? null;
     if (hit) {
       const r = svgEl.getBoundingClientRect();
       tooltipX = e.clientX - r.left;
@@ -252,98 +179,95 @@
 
   function onMouseDown(e: MouseEvent) {
     const hit = hitTest(e);
-    if (hit) {
-      draggingNode = hit;
-      hit.fx = hit.x;
-      hit.fy = hit.y;
-    } else {
-      isPanning = true;
-      panStartX = e.clientX;
-      panStartY = e.clientY;
-      panOriginTx = tx;
-      panOriginTy = ty;
-    }
+    if (hit) { draggingNode = hit; hit.fx = hit.x; hit.fy = hit.y; }
+    else { isPanning = true; panSX = e.clientX; panSY = e.clientY; panOX = tx; panOY = ty; }
   }
 
   function onMouseUp() {
-    if (draggingNode) {
-      draggingNode.fx = null;
-      draggingNode.fy = null;
-      draggingNode = null;
-    }
+    if (draggingNode) { draggingNode.fx = null; draggingNode.fy = null; draggingNode = null; }
     isPanning = false;
   }
 
   function onClick(e: MouseEvent) {
-    const hit = hitTest(e);
-    if (hit) goto(`${base}/notes/${hit.id}`);
+    if (!isPanning) {
+      const hit = hitTest(e);
+      if (hit) goto(`${base}/notes/${hit.id}`);
+    }
   }
 
   function onWheel(e: WheelEvent) {
     e.preventDefault();
-    const r = svgEl.getBoundingClientRect();
-    const mx = e.clientX - r.left,
-      my = e.clientY - r.top;
-    const f = e.deltaY < 0 ? 1.12 : 0.89;
-    const ns = Math.max(0.2, Math.min(4, scale * f));
-    tx = mx - (mx - tx) * (ns / scale);
-    ty = my - (my - ty) * (ns / scale);
+    const r  = svgEl.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const f  = e.deltaY < 0 ? 1.15 : 0.87;
+    const ns = Math.max(0.1, Math.min(5, scale * f));
+    tx = mx - (mx - tx) * (ns / scale); ty = my - (my - ty) * (ns / scale); scale = ns;
+  }
+
+  function zoom(f: number) {
+    const ns = Math.max(0.1, Math.min(5, scale * f));
+    tx = width  / 2 - (width  / 2 - tx) * (ns / scale);
+    ty = height / 2 - (height / 2 - ty) * (ns / scale);
     scale = ns;
   }
 
-  function zoom(factor: number) {
-    const cx = width / 2,
-      cy = height / 2;
-    const ns = Math.max(0.2, Math.min(4, scale * factor));
-    tx = cx - (cx - tx) * (ns / scale);
-    ty = cy - (cy - ty) * (ns / scale);
+  function fitView() {
+    if (!simNodes.length) return;
+    const xs = simNodes.map(n => n.x), ys = simNodes.map(n => n.y);
+    const mnX = Math.min(...xs), mxX = Math.max(...xs);
+    const mnY = Math.min(...ys), mxY = Math.max(...ys);
+    const gw = mxX - mnX || 1, gh = mxY - mnY || 1, pad = 80;
+    const ns = Math.min((width - pad * 2) / gw, (height - pad * 2) / gh, 2);
     scale = ns;
+    tx = width  / 2 - (mnX + gw / 2) * ns;
+    ty = height / 2 - (mnY + gh / 2) * ns;
   }
 
-  function resetView() {
-    tx = 0;
-    ty = 0;
-    scale = 1;
-  }
+  // ── D3 force simulation ───────────────────────────────────────────────────────
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
+  onMount(async () => {
+    const d3 = await import('d3');
 
-  onMount(() => {
     const readSize = () => {
-      width = svgEl.clientWidth || svgEl.getBoundingClientRect().width || 800;
-      height =
-        svgEl.clientHeight || svgEl.getBoundingClientRect().height || 600;
+      width  = svgEl.clientWidth  || 900;
+      height = svgEl.clientHeight || 650;
     };
 
-    // Wait TWO frames: first for the DOM to paint, second for layout to settle
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        readSize();
-        initPositions();
-
-        let frame = 0;
-        const ACTIVE = 180; // frames to run hot simulation
-
-        function loop() {
-          if (frame < ACTIVE) {
-            simStep();
-            frame++;
-            // KEY FIX: reassigning `nodes` tells Svelte to re-render.
-            // The array is the same reference but Svelte re-reads all node.x/y.
-            nodes = nodes;
-          }
-          rafId = requestAnimationFrame(loop);
-        }
-
-        rafId = requestAnimationFrame(loop);
-      });
-    });
-
-    const ro = new ResizeObserver(() => {
-      readSize();
-    });
+    const ro = new ResizeObserver(readSize);
     ro.observe(svgEl);
-    return () => ro.disconnect();
+
+    // Wait for layout
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    readSize();
+
+    const linkData: GLink[] = rawLinks.map(l => ({ ...l }));
+
+    const sim = d3.forceSimulation<GNode>(nodes)
+      .force('link',      d3.forceLink<GNode, GLink>(linkData)
+                            .id(d => d.id).distance(100).strength(0.5))
+      .force('charge',    d3.forceManyBody<GNode>()
+                            .strength(d => -220 - d.degree * 35)
+                            .distanceMax(500))
+      .force('center',    d3.forceCenter(width / 2, height / 2).strength(0.04))
+      .force('collision', d3.forceCollide<GNode>()
+                            .radius(d => nodeRadius(d) + 14).strength(0.8))
+      .alphaDecay(0.01)
+      .velocityDecay(0.4);
+
+    sim.on('tick', () => {
+      simLinks = linkData;
+      simNodes = nodes;
+    });
+
+    // Fit once the simulation cools down
+    let fitted = false;
+    sim.on('end', () => { if (!fitted) { fitted = true; fitView(); } });
+
+    // Keep Svelte re-rendering after sim cools (needed for drag)
+    function loop() { simNodes = nodes; rafId = requestAnimationFrame(loop); }
+    rafId = requestAnimationFrame(loop);
+
+    return () => { ro.disconnect(); sim.stop(); };
   });
 
   onDestroy(() => cancelAnimationFrame(rafId));
@@ -351,297 +275,261 @@
 
 <svelte:head><title>Graph · Digital Garden</title></svelte:head>
 
-<div class="fixed inset-0 z-50 flex flex-col" style="background:#080810">
+<div class="fixed inset-0 z-50 flex flex-col" style="background:#0d0d14">
+
   <!-- Topbar -->
-  <header
-    class="flex items-center gap-3 h-[58px] px-5 border-b border-white/[0.07]
-    bg-black/60 backdrop-blur-xl shrink-0 z-10"
-  >
-    <a
-      href="{base}/"
-      class="flex items-center gap-2 text-[12px] text-g-mid no-underline px-3 py-1.5
-        border border-white/[0.07] bg-white/[0.04]
-        hover:text-g-text hover:border-white/20 transition-all"
-      style="border-radius:50px 48px 50px 48px/48px 50px 48px 50px">← Garden</a
-    >
+  <header class="shrink-0 flex items-center gap-3 h-[52px] px-4 border-b border-white/[0.06] z-20"
+    style="background:rgba(13,13,20,0.92);backdrop-filter:blur(12px)">
 
-    <div class="relative max-w-xs flex-1">
-      <span
-        class="absolute left-3 top-1/2 -translate-y-1/2 text-g-low pointer-events-none"
-        >⌕</span
-      >
-      <input
-        type="search"
-        placeholder="Search nodes…"
-        bind:value={searchQuery}
-        class="w-full bg-white/[0.04] border border-white/[0.07] text-g-text text-[13px]
-          pl-8 pr-3 py-1.5 outline-none [&::-webkit-search-cancel-button]:hidden
-          focus:border-[rgba(180,77,255,0.4)] transition-all"
-        style="border-radius:48px 50px 50px 48px/50px 48px 50px 50px"
-      />
+    <a href="{base}/"
+      class="flex items-center gap-1.5 text-[11px] font-medium text-white/50 no-underline
+        px-3 py-1.5 rounded-full border border-white/[0.08]
+        hover:text-white/80 hover:border-white/20 transition-all">
+      ← Garden
+    </a>
+
+    <div class="relative">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-[13px] pointer-events-none">⌕</span>
+      <input type="search" placeholder="Search nodes…" bind:value={searchQuery}
+        class="w-44 bg-white/[0.05] border border-white/[0.08] text-white/80 text-[12px]
+          pl-8 pr-3 py-1.5 rounded-full outline-none transition-all
+          focus:border-white/25 focus:bg-white/[0.07] placeholder:text-white/25
+          [&::-webkit-search-cancel-button]:hidden"/>
     </div>
 
-    <div
-      class="hidden sm:flex items-center gap-4 ml-auto text-[11px] text-g-low font-light"
-    >
+    <div class="hidden sm:flex items-center gap-4 ml-auto text-[11px] text-white/30 font-light">
       <span>{nodes.length} notes</span>
-      <span>{links.length} connections</span>
+      <span class="{totalEdges === 0 ? 'text-amber-400/50' : ''}">{totalEdges} connections</span>
+      {#if totalEdges === 0}
+        <span class="text-[10px] text-amber-400/50 italic">— add [[wikilinks]] to see connections</span>
+      {/if}
     </div>
 
-    <button
-      class="text-[11px] text-g-low hover:text-g-mid px-3 py-1.5 border border-white/[0.07]
-        hover:border-white/20 transition-all"
-      style="border-radius:50px 48px 50px 48px/48px 50px 48px 50px"
-      on:click={resetView}>⊹ Reset</button
-    >
+    <div class="flex items-center gap-1.5 {totalEdges === 0 ? '' : 'ml-auto sm:ml-0'}">
+      <button on:click={fitView}
+        class="text-[11px] text-white/40 hover:text-white/75 px-3 py-1.5 rounded-full
+          border border-white/[0.07] hover:border-white/20 transition-all">Fit</button>
+      <button on:click={() => zoom(1.25)}
+        class="w-7 h-7 text-sm font-bold text-white/40 hover:text-white/75 flex items-center justify-center
+          rounded-full border border-white/[0.07] hover:border-white/20 transition-all">+</button>
+      <button on:click={() => zoom(0.8)}
+        class="w-7 h-7 text-sm font-bold text-white/40 hover:text-white/75 flex items-center justify-center
+          rounded-full border border-white/[0.07] hover:border-white/20 transition-all">−</button>
+    </div>
   </header>
 
-  <!-- Canvas -->
   <div class="flex flex-1 overflow-hidden">
+
+    <!-- SVG canvas -->
     <div class="relative flex-1">
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <svg
-        bind:this={svgEl}
-        class="w-full h-full select-none"
-        style="cursor:{draggingNode
-          ? 'grabbing'
-          : hoveredNode
-            ? 'pointer'
-            : 'grab'}"
+      <svg bind:this={svgEl} class="w-full h-full"
+        style="cursor:{draggingNode?'grabbing':hoveredId?'pointer':'grab'}"
         on:mousemove={onMouseMove}
         on:mousedown={onMouseDown}
         on:mouseup={onMouseUp}
         on:click={onClick}
         on:wheel|preventDefault={onWheel}
-        on:mouseleave={() => {
-          hoveredNode = null;
-          isPanning = false;
-          onMouseUp();
-        }}
+        on:mouseleave={() => { hoveredId = null; onMouseUp(); }}
       >
         <defs>
-          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge
-              ><feMergeNode in="blur" /><feMergeNode
-                in="SourceGraphic"
-              /></feMerge
-            >
+          <pattern id="dot-grid" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="0.5" cy="0.5" r="0.7" fill="rgba(255,255,255,0.08)"/>
+          </pattern>
+          <filter id="glow-node" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
-          <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
-            <stop offset="0%" stop-color="transparent" />
-            <stop offset="100%" stop-color="#080810" stop-opacity="0.7" />
+          <filter id="glow-edge" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <radialGradient id="vignette" cx="50%" cy="50%" r="65%">
+            <stop offset="0%" stop-color="transparent"/>
+            <stop offset="100%" stop-color="#0d0d14" stop-opacity="0.7"/>
           </radialGradient>
         </defs>
 
+        <!-- Dot grid (fixed to viewport, not transformed) -->
+        <rect width="100%" height="100%" fill="url(#dot-grid)"/>
+
+        <!-- Pan+zoom group -->
         <g transform="translate({tx},{ty}) scale({scale})">
+
           <!-- Edges -->
-          {#each links as link}
+          {#each simLinks as link}
+            {@const sx  = (link.source as GNode).x ?? 0}
+            {@const sy  = (link.source as GNode).y ?? 0}
+            {@const tx2 = (link.target as GNode).x ?? 0}
+            {@const ty2 = (link.target as GNode).y ?? 0}
+            {@const op  = edgeOpacity(link)}
+            {@const col = edgeStroke(link)}
+            {@const lit = op > 0.5}
             <line
-              x1={link.source.x}
-              y1={link.source.y}
-              x2={link.target.x}
-              y2={link.target.y}
-              stroke="white"
-              stroke-opacity={linkOpacity(link)}
-              stroke-width={scale < 0.5 ? 0.8 : 1.2}
+              x1={sx} y1={sy} x2={tx2} y2={ty2}
+              stroke={col} stroke-opacity={op}
+              stroke-width={lit ? 2 : 1}
+              filter={lit ? 'url(#glow-edge)' : undefined}
             />
           {/each}
 
           <!-- Nodes -->
-          {#each nodes as node (node.id)}
-            {@const r = nodeRadius(node)}
-            {@const hov = hoveredNode?.id === node.id}
-            <g
-              transform="translate({node.x},{node.y})"
-              opacity={nodeOpacity(node)}
-              style="transition:opacity 0.2s"
-            >
+          {#each simNodes as node (node.id)}
+            {@const r   = nodeRadius(node)}
+            {@const op  = nodeOpacity(node)}
+            {@const hov = hoveredId === node.id}
+            {@const nb  = !!neighborIds?.has(node.id) && !hov}
+            <g transform="translate({node.x ?? 0},{node.y ?? 0})"
+               opacity={op} style="transition:opacity 0.12s">
+
+              <!-- Glow halo on hover -->
               {#if hov}
-                <circle
-                  r={r + 8}
-                  fill="none"
-                  stroke={node.hex}
-                  stroke-width="1.5"
-                  stroke-opacity="0.45"
-                  filter="url(#glow)"
-                />
+                <circle r={r + 12} fill={node.hex} fill-opacity="0.1"
+                  stroke={node.hex} stroke-opacity="0.2" stroke-width="1.5"/>
+                <circle r={r + 6} fill="none"
+                  stroke={node.hex} stroke-opacity="0.45" stroke-width="1.2"
+                  filter="url(#glow-node)"/>
+              {:else if nb}
+                <circle r={r + 5} fill={node.hex} fill-opacity="0.08"
+                  stroke={node.hex} stroke-opacity="0.2" stroke-width="0.8"/>
               {/if}
-              <circle
-                {r}
+
+              <!-- Main circle -->
+              <circle {r}
                 fill={node.hex}
-                fill-opacity={hov ? 1 : 0.82}
-                stroke={hov ? "#fff" : node.hex}
-                stroke-width={hov ? 1.5 : 0.6}
-                stroke-opacity={hov ? 0.4 : 0.25}
+                fill-opacity={hov ? 1 : nb ? 0.9 : 0.72}
+                stroke="rgba(255,255,255,{hov ? 0.35 : 0.18})"
+                stroke-width={hov ? 1.5 : 0.7}
+                filter={hov ? 'url(#glow-node)' : undefined}
               />
-              {#if scale > 0.65 || hov}
-                <text
-                  text-anchor="middle"
-                  dominant-baseline="central"
-                  font-size={Math.max(8, r * 0.85)}
-                  style="pointer-events:none;user-select:none"
-                  >{node.emoji}</text
-                >
+
+              <!-- Emoji (only when big enough) -->
+              {#if r >= 9 || hov}
+                <text text-anchor="middle" dominant-baseline="central"
+                  font-size={Math.min(r * 0.95, 13)}
+                  style="pointer-events:none;user-select:none">{node.emoji}</text>
               {/if}
-              {#if scale > 1.05 || (hov && scale > 0.45)}
-                <text
-                  y={r + 12}
-                  text-anchor="middle"
-                  font-size={Math.min(11, 9 / scale)}
-                  fill="rgba(255,255,255,0.8)"
-                  style="pointer-events:none;user-select:none"
-                  >{node.title.length > 24
-                    ? node.title.slice(0, 24) + "…"
-                    : node.title}</text
-                >
-              {/if}
+
+              <!-- Label -->
+              <text
+                y={r + (scale > 0.8 ? 13 : 10)}
+                text-anchor="middle"
+                fill="white"
+                fill-opacity={
+                  hov    ? 1     :
+                  nb     ? 0.75  :
+                  op < 0.3 ? 0   :
+                  scale < 0.35 ? 0 :
+                  scale < 0.6  ? 0.4 : 0.55
+                }
+                font-size={Math.max(8, Math.min(12, 10 / scale))}
+                style="pointer-events:none;user-select:none;transition:fill-opacity 0.12s"
+              >{node.title.length > 28 ? node.title.slice(0,28)+'…' : node.title}</text>
             </g>
           {/each}
+
         </g>
 
-        <rect
-          width="100%"
-          height="100%"
-          fill="url(#vignette)"
-          style="pointer-events:none"
-        />
+        <!-- Vignette overlay -->
+        <rect width="100%" height="100%" fill="url(#vignette)" style="pointer-events:none"/>
       </svg>
 
       <!-- Tooltip -->
-      {#if hoveredNode}
-        {@const n = hoveredNode}
-        <div
-          class="absolute z-20 pointer-events-none max-w-[220px]
-          bg-[#13131f] border border-white/[0.13] px-3.5 py-2.5 shadow-2xl"
-          style="border-radius:14px 12px 14px 12px/12px 14px 12px 14px;
-            left:{Math.min(tooltipX + 14, (width || 800) - 240)}px;
-            top:{Math.max(10, tooltipY - 80)}px"
-        >
-          <div class="flex items-center gap-2 mb-1">
-            <span>{n.emoji}</span>
-            <span
-              class="text-[10px] font-semibold uppercase tracking-widest"
-              style="color:{n.hex}">{n.tag}</span
-            >
-            <span class="ml-auto text-[10px]">
-              {n.status === "seedling"
-                ? "🌱"
-                : n.status === "budding"
-                  ? "🌿"
-                  : n.status === "evergreen"
-                    ? "🌲"
-                    : "🍂"}
-            </span>
+      {#if hoveredId}
+        {@const n = nodeMap.get(hoveredId)}
+        {#if n}
+          <div class="absolute z-30 pointer-events-none"
+            style="left:{Math.min(tooltipX+18,(width||800)-230)}px;top:{Math.max(8,tooltipY-96)}px">
+            <div class="w-[215px] rounded-xl border border-white/[0.1] shadow-2xl overflow-hidden"
+              style="background:rgba(16,16,26,0.97)">
+              <div class="h-[3px]" style="background:linear-gradient(90deg,{n.hex},{n.hex}88)"></div>
+              <div class="px-4 py-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-base">{n.emoji}</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-widest"
+                    style="color:{n.hex}">{n.tag}</span>
+                  <span class="ml-auto text-sm">
+                    {n.status==='seedling'?'🌱':n.status==='budding'?'🌿':n.status==='evergreen'?'🌲':'🍂'}
+                  </span>
+                </div>
+                <p class="text-[13.5px] font-bold text-white leading-snug mb-2">{n.title}</p>
+                {#if n.degree > 0}
+                  <p class="text-[11px] text-white/45">{n.degree} connection{n.degree > 1 ? 's' : ''}</p>
+                {:else}
+                  <p class="text-[11px] text-white/25 italic">No connections</p>
+                {/if}
+                <p class="text-[10px] text-white/20 mt-2 border-t border-white/[0.06] pt-2">
+                  Click to open · Drag to reposition
+                </p>
+              </div>
+            </div>
           </div>
-          <p class="text-[13px] font-bold text-white leading-snug">{n.title}</p>
-          {#if n.degree > 0}
-            <p class="text-[10px] text-g-low mt-1">
-              {n.degree} connection{n.degree > 1 ? "s" : ""}
-            </p>
-          {/if}
-          <p class="text-[10px] text-g-low/50 mt-1.5 italic">Click to open</p>
-        </div>
+        {/if}
       {/if}
 
-      <!-- Zoom controls -->
-      <div class="absolute bottom-6 right-6 flex flex-col gap-1.5">
-        {#each [["+", 1.25], ["−", 0.8]] as [label, f]}
-          <button
-            class="w-8 h-8 text-sm font-bold text-g-mid bg-white/[0.05] border border-white/[0.1]
-              hover:text-g-text hover:bg-white/[0.08] transition-all flex items-center justify-center"
-            style="border-radius:10px 8px 10px 8px/8px 10px 8px 10px"
-            on:click={() => zoom(f)}>{label}</button
-          >
-        {/each}
-        <button
-          class="w-8 h-8 text-[10px] text-g-low bg-white/[0.05] border border-white/[0.1]
-            hover:text-g-mid hover:bg-white/[0.08] transition-all flex items-center justify-center"
-          style="border-radius:10px 8px 10px 8px/8px 10px 8px 10px"
-          on:click={resetView}
-          title="Reset zoom">⊹</button
-        >
-      </div>
-
-      <p
-        class="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-white/25 pointer-events-none"
-      >
-        Scroll to zoom · Drag to pan · Click node to open
+      <!-- Hint -->
+      <p class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-white/18 pointer-events-none whitespace-nowrap">
+        Scroll to zoom · Drag background to pan · Drag nodes to rearrange
       </p>
     </div>
 
-    <!-- Tag legend -->
-    <aside
-      class="hidden lg:flex flex-col w-[180px] shrink-0 border-l border-white/[0.07]
-      overflow-y-auto py-4 px-3 gap-0.5"
-      style="background:rgba(255,255,255,0.02)"
-    >
-      <p
-        class="text-[9px] uppercase tracking-[0.22em] text-g-low px-2 mb-2 font-medium"
-      >
-        Tags
-      </p>
+    <!-- Tag sidebar -->
+    <aside class="hidden lg:flex flex-col w-[165px] shrink-0 border-l border-white/[0.06]
+      overflow-y-auto py-4 px-2.5 gap-0.5"
+      style="background:rgba(13,13,20,0.85)">
+
+      <p class="text-[9px] uppercase tracking-[0.2em] text-white/30 px-2 pb-2 font-medium">Tags</p>
 
       <button
-        class="flex items-center gap-2 px-2 py-1.5 text-[12px] text-left transition-all
-          border border-transparent rounded-[8px_6px_8px_6px/6px_8px_6px_8px]
-          {!highlightTag
-          ? 'text-g-text bg-white/[0.06] border-white/[0.07]'
-          : 'text-g-low hover:text-g-mid'}"
-        on:click={() => (highlightTag = "")}
+        class="flex items-center gap-2 px-2 py-1.5 text-[11px] rounded-lg text-left
+          transition-all border"
+        style={!highlightTag
+          ? 'color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.12)'
+          : 'color:rgba(255,255,255,0.35);border-color:transparent'}
+        on:click={() => highlightTag = ''}
       >
         <span class="text-xs">🌿</span>
         <span>All</span>
-        <span class="ml-auto text-[10px] text-g-low">{nodes.length}</span>
+        <span class="ml-auto text-[10px] opacity-50">{nodes.length}</span>
       </button>
 
       {#each allTags as tag}
-        {@const sampleNode = nodes.find((n) => n.tag === tag)}
-        {@const hex = sampleNode?.hex ?? "#b44dff"}
-        {@const emoji = sampleNode?.emoji ?? "·"}
-        {@const count = nodes.filter((n) => n.tag === tag).length}
+        {@const sample = nodes.find(n => n.tag === tag)}
+        {@const hex   = sample?.hex ?? '#b44dff'}
+        {@const emoji = sample?.emoji ?? '·'}
+        {@const count = nodes.filter(n => n.tag === tag).length}
         {@const active = highlightTag === tag}
         <button
-          class="flex items-center gap-2 px-2 py-1.5 text-[12px] capitalize text-left
-            rounded-[8px_6px_8px_6px/6px_8px_6px_8px] transition-all border border-transparent
-            {active ? '' : 'text-g-low hover:text-g-mid'}"
+          class="flex items-center gap-2 px-2 py-1.5 text-[11px] capitalize rounded-lg
+            text-left transition-all border"
           style={active
-            ? `color:${hex};background:${hex}18;border-color:${hex}30`
-            : ""}
-          on:click={() => (highlightTag = active ? "" : tag)}
+            ? `color:${hex};background:${hex}1a;border-color:${hex}35`
+            : 'color:rgba(255,255,255,0.38);border-color:transparent'}
+          on:click={() => highlightTag = active ? '' : tag}
         >
           <span class="text-xs">{emoji}</span>
           <span class="truncate">{tag}</span>
-          <span class="ml-auto text-[10px] opacity-50">{count}</span>
+          <span class="ml-auto text-[10px] opacity-45">{count}</span>
         </button>
       {/each}
 
-      <!-- Size legend -->
-      <div class="mt-auto pt-4 border-t border-white/[0.07]">
-        <p
-          class="text-[9px] uppercase tracking-[0.22em] text-g-low px-2 mb-3 font-medium"
-        >
-          Node size
-        </p>
-        <div class="flex items-end gap-3 px-2">
-          {#each [[1, "Few"], [4, "Some"], [8, "Many"]] as [deg, label]}
-            {@const r = Math.max(7, Math.min(22, 7 + deg * 2.2))}
+      <!-- Node size legend -->
+      <div class="mt-auto pt-4 border-t border-white/[0.05] space-y-2.5 px-2">
+        <p class="text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium">Node size</p>
+        <div class="flex items-end justify-between">
+          {#each [[0,'Solo'],[3,'Linked'],[7,'Hub']] as [deg, lbl]}
+            {@const r = Math.max(5, Math.min(20, 5 + Math.sqrt(deg as number) * 4))}
             <div class="flex flex-col items-center gap-1.5">
-              <svg width={r * 2 + 2} height={r * 2 + 2}>
-                <circle
-                  cx={r + 1}
-                  cy={r + 1}
-                  {r}
-                  fill="#b44dff"
-                  fill-opacity="0.75"
-                />
+              <svg width={r*2+2} height={r*2+2}>
+                <circle cx={r+1} cy={r+1} r={r} fill="#b44dff" fill-opacity="0.65"/>
               </svg>
-              <span class="text-[9px] text-g-low">{label}</span>
+              <span class="text-[8px] text-white/25">{lbl}</span>
             </div>
           {/each}
         </div>
       </div>
+
     </aside>
   </div>
 </div>
