@@ -7,7 +7,4 @@ compatibility_flags = ["nodejs_compat"]
 # REQUIRED for Pages to accept/apply this config file
 pages_build_output_dir = ".svelte-kit/cloudflare"
 
-# Optional but fixes the site.entry-point deprecation warning
-main = ".svelte-kit/cloudflare/_worker.js"
-
 # If you have any other sections (e.g., for future KV/R2), add here
