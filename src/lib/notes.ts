@@ -3,6 +3,7 @@ import path from 'path';
 import matter from 'gray-matter';
 import { marked } from 'marked';
 import { tagToAccent, tagToEmoji } from '$lib/utils/tagColor';
+import { preprocessCallouts } from '$lib/utils/callout';
 import type { Note, NoteSummary, NoteStatus, NoteBacklink } from '$lib/types';
 
 const NOTES_DIR = path.resolve('notes');
@@ -23,7 +24,7 @@ function stripHtml(html: string): string {
 }
 
 function makeExcerpt(content: string, length = 220): string {
-  const plain = stripHtml(marked(content) as string);
+  const plain = stripHtml(marked(preprocessCallouts(content)) as string);
   return plain.length > length
     ? plain.slice(0, length).replace(/\w+$/, '') + '…'
     : plain;
@@ -110,7 +111,7 @@ export function loadAllNotes(): Note[] {
     const status = parseStatus(fm.status);
     const published = fm.published === true;
 
-    const rawHtml = marked(content) as string;
+    const rawHtml = marked(preprocessCallouts(content)) as string;
     const html = resolveWikilinks(rawHtml, allSlugs);
     const excerpt = (fm.description as string | undefined) ?? (fm.excerpt as string | undefined) ?? makeExcerpt(content);
 

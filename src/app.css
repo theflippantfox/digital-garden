@@ -3,9 +3,19 @@
 @tailwind utilities;
 
 /* ── Custom scrollbar ── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #161628; border-radius: 4px; }
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #161628;
+  border-radius: 4px;
+}
 
 /* ── Grain texture overlay ── */
 body::after {
@@ -20,48 +30,130 @@ body::after {
 
 /* ── Background blob animations ── */
 @keyframes breathe1 {
-  from { border-radius: 58% 42% 54% 46% / 52% 48% 52% 48%; }
-  to   { border-radius: 54% 46% 60% 40% / 48% 54% 46% 52%; }
+  from {
+    border-radius: 58% 42% 54% 46% / 52% 48% 52% 48%;
+  }
+
+  to {
+    border-radius: 54% 46% 60% 40% / 48% 54% 46% 52%;
+  }
 }
+
 @keyframes breathe2 {
-  from { border-radius: 52% 48% 58% 42% / 46% 54% 46% 54%; }
-  to   { border-radius: 56% 44% 52% 48% / 52% 48% 52% 46%; }
+  from {
+    border-radius: 52% 48% 58% 42% / 46% 54% 46% 54%;
+  }
+
+  to {
+    border-radius: 56% 44% 52% 48% / 52% 48% 52% 46%;
+  }
 }
+
 @keyframes breatheFab {
-  from { border-radius: 52% 48% 54% 46% / 48% 54% 46% 52%; }
-  to   { border-radius: 56% 44% 50% 50% / 44% 56% 48% 52%; }
+  from {
+    border-radius: 52% 48% 54% 46% / 48% 54% 46% 52%;
+  }
+
+  to {
+    border-radius: 56% 44% 50% 50% / 44% 56% 48% 52%;
+  }
 }
+
 @keyframes riseIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Prose overrides for dark theme ── */
 .prose-garden pre {
   background: #161628 !important;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
 }
+
 .prose-garden code:not(pre code) {
   background: #161628;
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   padding: 2px 6px;
   border-radius: 5px;
   font-size: 0.85em;
   color: #b44dff;
 }
+
 .prose-garden a.wikilink {
   color: #b44dff;
   text-decoration: none;
-  border-bottom: 1px dotted rgba(180,77,255,0.5);
+  border-bottom: 1px dotted rgba(180, 77, 255, 0.5);
   transition: color 0.15s;
 }
-.prose-garden a.wikilink:hover { color: #00f0ff; border-bottom-color: rgba(0,240,255,0.5); }
+
+.prose-garden a.wikilink:hover {
+  color: #00f0ff;
+  border-bottom-color: rgba(0, 240, 255, 0.5);
+}
+
 .prose-garden .wikilink--broken {
   color: #4e4868;
   border-bottom: 1px dotted #4e4868;
   cursor: default;
 }
+
 .prose-garden blockquote {
   border-left-color: #b44dff;
+}
+
+/* ── Obsidian callouts ───────────────────────────────────────────────────────── */
+.callout {
+  --callout-color: #4d9fff;
+  margin: 1.25em 0;
+  border-left: 3px solid var(--callout-color);
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--callout-color) 9%, transparent);
+  overflow: hidden;
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 1em;
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--callout-color);
+  background: color-mix(in srgb, var(--callout-color) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--callout-color) 20%, transparent);
+}
+
+.callout-icon {
+  font-size: 1.1em;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.callout-body {
+  padding: 0.75em 1em 0.75em 1.1em;
+  font-size: 0.9em;
+}
+
+.callout-body>*:first-child {
+  margin-top: 0;
+}
+
+.callout-body>*:last-child {
+  margin-bottom: 0;
+}
+
+/* Nested callouts */
+.callout .callout {
+  margin: 0.75em 0;
+  font-size: 0.95em;
 }

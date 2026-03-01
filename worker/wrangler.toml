@@ -24,7 +24,7 @@ CACHE_TTL = "120"
 # If your .md files live in a subdirectory of the repo, set this.
 # Example: NOTES_SUBDIR = "notes"    (reads repo/notes/*.md)
 # Leave empty ("") to read from the repo root.
-NOTES_SUBDIR = ""
+NOTES_SUBDIR = "02 - Garden"
 
 # Git branch to read notes from. "HEAD" follows the default branch.
 NOTES_BRANCH = "HEAD"
@@ -32,4 +32,4 @@ NOTES_BRANCH = "HEAD"
 # Set to "true" only if notes are nested more than 1 folder deep.
 # Uses 2 subrequests instead of 1 (still well within limits).
 # For flat vaults or single-level folders, leave as "false".
-NOTES_RECURSIVE = "false"
+NOTES_RECURSIVE = "true"
