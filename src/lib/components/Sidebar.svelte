@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { base } from '$app/paths';
-  import { page } from '$app/stores';
-  import { createEventDispatcher } from 'svelte';
-  import type { NoteSummary } from '$lib/types';
+  import { base } from "$app/paths";
+  import { page } from "$app/stores";
+  import { createEventDispatcher } from "svelte";
+  import type { NoteSummary } from "$lib/types";
 
   export let allTags: string[] = [];
   export let totalNotes: number = 0;
@@ -12,10 +12,10 @@
   const dispatch = createEventDispatcher<{ close: void }>();
 
   const ACCENT_COLORS: Record<string, string> = {
-    violet: '#b44dff',
-    coral:  '#ff5c3a',
-    cyan:   '#00f0ff',
-    lime:   '#b8ff3a',
+    violet: "#b44dff",
+    coral: "#ff5c3a",
+    cyan: "#00f0ff",
+    lime: "#b8ff3a",
   };
 </script>
 
@@ -26,13 +26,13 @@
     role="button"
     tabindex="-1"
     aria-label="Close menu"
-    on:click={() => dispatch('close')}
-    on:keydown={e => e.key === 'Escape' && dispatch('close')}
+    on:click={() => dispatch("close")}
+    on:keydown={(e) => e.key === "Escape" && dispatch("close")}
   ></div>
 {/if}
 
 <aside
-  class="fixed md:sticky top-0 md:top-[62px] z-50 md:z-auto
+  class="fixed md:sticky top-0 z-50 md:z-auto
     w-[260px] md:w-[220px] lg:w-[240px]
     h-screen md:h-[calc(100vh-62px)]
     bg-g-bg/95 md:bg-g-bg/30 backdrop-blur-xl md:backdrop-blur-none
@@ -47,9 +47,9 @@
     <span class="font-display font-black text-lg tracking-tight">garden</span>
     <button
       class="text-g-low hover:text-g-mid transition-colors p-1"
-      on:click={() => dispatch('close')}
-      aria-label="Close menu"
-    >✕</button>
+      on:click={() => dispatch("close")}
+      aria-label="Close menu">✕</button
+    >
   </div>
 
   <nav class="flex flex-col gap-1 px-3 pt-4 pb-8 flex-1">
@@ -58,12 +58,16 @@
     <a
       href="{base}/"
       class="nav-item"
-      class:nav-active={$page.url.pathname === (base || '/') || $page.url.pathname === base + '/'}
-      on:click={() => dispatch('close')}
+      class:nav-active={$page.url.pathname === (base || "/") ||
+        $page.url.pathname === base + "/"}
+      on:click={() => dispatch("close")}
     >
       <span>🌿</span>
       <span>All Notes</span>
-      <span class="ml-auto text-[10px] bg-g-surface2 px-2 py-0.5 rounded-full text-g-low">{totalNotes}</span>
+      <span
+        class="ml-auto text-[10px] bg-g-surface2 px-2 py-0.5 rounded-full text-g-low"
+        >{totalNotes}</span
+      >
     </a>
 
     {#if allTags.length}
@@ -72,7 +76,7 @@
         <a
           href="{base}/?tag={encodeURIComponent(tag)}"
           class="nav-item"
-          on:click={() => dispatch('close')}
+          on:click={() => dispatch("close")}
         >
           <span class="text-xs opacity-60">⊹</span>
           <span class="capitalize">{tag}</span>
@@ -87,11 +91,11 @@
           href="{base}/notes/{note.slug}"
           class="nav-item"
           class:nav-active={$page.params.slug === note.slug}
-          on:click={() => dispatch('close')}
+          on:click={() => dispatch("close")}
         >
           <span
             class="w-2 h-2 rounded-full shrink-0"
-            style:background={ACCENT_COLORS[note.accent] ?? '#b44dff'}
+            style:background={ACCENT_COLORS[note.accent] ?? "#b44dff"}
             style="border-radius: 52% 48% 50% 50% / 50% 52% 48% 50%"
             aria-hidden="true"
           ></span>
@@ -116,7 +120,11 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0 }
-    to   { opacity: 1 }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 </style>
