@@ -14,7 +14,7 @@ function djb2(str: string): number {
 // ── Accent colors ─────────────────────────────────────────────────────────────
 
 const ACCENTS: Accent[] = [
-  'violet','coral','cyan','lime','amber','rose','sky','emerald','indigo','orange'
+  'violet', 'coral', 'cyan', 'lime', 'amber', 'rose', 'sky', 'emerald', 'indigo', 'orange'
 ];
 
 const KNOWN_ACCENTS: Record<string, Accent> = {
@@ -35,7 +35,7 @@ function tagToAccent(tag: string): Accent {
 
 // ── Emojis ────────────────────────────────────────────────────────────────────
 
-const EMOJI_POOL = ['💡','🔧','🎨','📐','🧪','🌊','🔬','📡','⚡','🎯','🧩','🌀'];
+const EMOJI_POOL = ['💡', '🔧', '🎨', '📐', '🧪', '🌊', '🔬', '📡', '⚡', '🎯', '🧩', '🌀'];
 
 const KNOWN_EMOJIS: Record<string, string> = {
   engineering: '⚙️', code: '💻', dev: '💻', tech: '🖥️', systems: '🧩',
@@ -65,14 +65,14 @@ export function titleToSlug(title: string): string {
 // ── Frontmatter parser (no gray-matter — no Node.js deps) ────────────────────
 
 interface Frontmatter {
-  title?:       string;
-  slug?:        string;
-  date?:        string;
-  tags?:        string[] | string;
-  status?:      string;
-  published?:   boolean;
+  title?: string;
+  slug?: string;
+  date?: string;
+  tags?: string[] | string;
+  status?: string;
+  published?: boolean;
   description?: string;
-  excerpt?:     string;
+  excerpt?: string;
   [key: string]: unknown;
 }
 
@@ -81,15 +81,15 @@ function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
   if (!match) return { data: {}, content: raw };
 
   const yamlBlock = match[1];
-  const content   = match[2];
+  const content = match[2];
   const data: Frontmatter = {};
 
   for (const line of yamlBlock.split('\n')) {
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
 
-    const key   = line.slice(0, colonIdx).trim();
-    let   value = line.slice(colonIdx + 1).trim();
+    const key = line.slice(0, colonIdx).trim();
+    let value = line.slice(colonIdx + 1).trim();
 
     if (!key) continue;
 
@@ -97,12 +97,12 @@ function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
     value = value.replace(/\s+#.*$/, '');
 
     // Boolean
-    if (value === 'true')  { (data as Record<string, unknown>)[key] = true;  continue; }
+    if (value === 'true') { (data as Record<string, unknown>)[key] = true; continue; }
     if (value === 'false') { (data as Record<string, unknown>)[key] = false; continue; }
 
     // Quoted string
     if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+      (value.startsWith("'") && value.endsWith("'"))) {
       (data as Record<string, unknown>)[key] = value.slice(1, -1);
       continue;
     }
@@ -130,7 +130,7 @@ function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
 function resolveWikilinks(html: string, allSlugs: string[]): string {
   return html.replace(/\[\[([^\]]+)\]\]/g, (_, inner: string) => {
     const [titlePart, displayPart] = inner.split('|');
-    const slug    = titleToSlug(titlePart.trim());
+    const slug = titleToSlug(titlePart.trim());
     const display = (displayPart ?? titlePart).trim();
     if (allSlugs.includes(slug)) {
       return `<a href="/notes/${slug}" class="wikilink" data-slug="${slug}">${display}</a>`;
@@ -172,7 +172,7 @@ function isoDate(raw: string | undefined): string | null {
   try { return new Date(raw).toISOString(); } catch { return null; }
 }
 
-const VALID_STATUSES: NoteStatus[] = ['seedling','budding','evergreen','compost'];
+const VALID_STATUSES: NoteStatus[] = ['seedling', 'budding', 'evergreen', 'compost'];
 function parseStatus(raw: string | undefined): NoteStatus {
   const s = (raw ?? '').toLowerCase().trim();
   return (VALID_STATUSES.includes(s as NoteStatus) ? s : 'seedling') as NoteStatus;
@@ -184,31 +184,31 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
   const { data: fm, content } = parseFrontmatter(rawContent);
 
   const titleFromFile = filename.replace(/\.md$/i, '');
-  const title     = fm.title    ?? titleFromFile;
-  const slug      = fm.slug     ?? titleToSlug(title);
+  const title = fm.title ?? titleFromFile;
+  const slug = fm.slug ?? titleToSlug(title);
 
-  const rawTags   = fm.tags;
+  const rawTags = fm.tags;
   const tags: string[] = Array.isArray(rawTags)
     ? rawTags.map(String)
     : rawTags ? [String(rawTags)] : ['general'];
 
   const primaryTag = tags[0].toLowerCase().trim();
-  const accent     = tagToAccent(primaryTag);
-  const emoji      = tagToEmoji(primaryTag);
-  const status     = parseStatus(fm.status);
-  const published  = fm.published !== false;
+  const accent = tagToAccent(primaryTag);
+  const emoji = tagToEmoji(primaryTag);
+  const status = parseStatus(fm.status);
+  const published = fm.published !== true;
 
-  const rawHtml   = marked(content) as string;
-  const html      = resolveWikilinks(rawHtml, allSlugs);
-  const excerpt   = fm.description ?? fm.excerpt ?? makeExcerpt(content);
+  const rawHtml = marked(content) as string;
+  const html = resolveWikilinks(rawHtml, allSlugs);
+  const excerpt = fm.description ?? fm.excerpt ?? makeExcerpt(content);
 
   return {
     slug, title,
-    date:       formatDate(fm.date),
-    dateRaw:    isoDate(fm.date),
+    date: formatDate(fm.date),
+    dateRaw: isoDate(fm.date),
     primaryTag, tags, accent, emoji, excerpt, html,
-    links:      countWikilinks(content),
-    backlinks:  [], // populated after all notes are parsed
+    links: countWikilinks(content),
+    backlinks: [], // populated after all notes are parsed
     status, published,
   };
 }

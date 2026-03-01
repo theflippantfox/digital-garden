@@ -1,27 +1,26 @@
 <script lang="ts">
-  import { base } from "$app/paths";
-  import StatusBadge from "$lib/components/StatusBadge.svelte";
-  import { ACCENT_STYLES } from "$lib/utils/tagColor";
-  import type { PageData } from "./$types";
-  import type { Accent } from "$lib/types";
+  import { base } from '$app/paths';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import { ACCENT_STYLES } from '$lib/utils/tagColor';
+  import type { PageData } from './$types';
+  import type { Accent } from '$lib/types';
 
   export let data: PageData;
 
-  $: note = data.note;
+  $: note   = data.note;
   $: accent = ACCENT_STYLES[note.accent];
 
   // Pebble-pill badge shape
   const BADGE_SHAPES: Record<Accent, string> = {
-    amber: "48px 50px 50px 48px / 50px 48px 48px 50px",
-    violet: "50px 48px 50px 48px / 48px 50px 48px 50px",
-    coral: "48px 50px 48px 50px / 50px 48px 50px 48px",
-    cyan: "50px 50px 48px 50px / 48px 50px 50px 48px",
-    lime: "48px 50px 50px 48px / 50px 48px 48px 50px",
+    violet: '50px 48px 50px 48px / 48px 50px 48px 50px',
+    coral:  '48px 50px 48px 50px / 50px 48px 50px 48px',
+    cyan:   '50px 50px 48px 50px / 48px 50px 50px 48px',
+    lime:   '48px 50px 50px 48px / 50px 48px 48px 50px',
   };
 
   const CHIP_SHAPES = [
-    "14px 12px 14px 12px / 12px 14px 12px 14px",
-    "12px 14px 12px 14px / 14px 12px 14px 12px",
+    '14px 12px 14px 12px / 12px 14px 12px 14px',
+    '12px 14px 12px 14px / 14px 12px 14px 12px',
   ];
 </script>
 
@@ -31,6 +30,7 @@
 </svelte:head>
 
 <article class="max-w-[720px] px-5 md:px-10 py-8 md:py-12">
+
   <!-- Back -->
   <a
     href="{base}/"
@@ -39,8 +39,7 @@
       hover:text-[#b44dff] hover:border-[rgba(180,77,255,0.35)] hover:bg-[rgba(180,77,255,0.1)]
       transition-all duration-150"
     style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
-    >← back to garden</a
-  >
+  >← back to garden</a>
 
   <!-- Meta row: tag badge + status + date -->
   <div class="flex flex-wrap items-center gap-2.5 mb-5">
@@ -56,19 +55,14 @@
     <StatusBadge status={note.status} size="md" />
 
     {#if note.date}
-      <time
-        class="text-[11.5px] text-g-low font-light"
-        datetime={note.dateRaw ?? undefined}
-      >
+      <time class="text-[11.5px] text-g-low font-light" datetime={note.dateRaw ?? undefined}>
         {note.date}
       </time>
     {/if}
   </div>
 
   <!-- Title only — no description/excerpt -->
-  <h1
-    class="font-display font-black text-[clamp(26px,5vw,46px)] tracking-[-1.5px] leading-[1.05] text-g-text mb-6"
-  >
+  <h1 class="font-display font-black text-[clamp(26px,5vw,46px)] tracking-[-1.5px] leading-[1.05] text-g-text mb-6">
     {note.title}
   </h1>
 
@@ -81,8 +75,7 @@
           class="text-[10px] font-medium text-g-low border border-white/[0.07]
             px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
           style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
-          >#{tag}</a
-        >
+        >#{tag}</a>
       {/each}
     </div>
   {/if}
@@ -90,26 +83,22 @@
   <hr class="border-none h-px bg-white/[0.07] mb-8" />
 
   <!-- Rendered markdown body -->
-  <div
-    class="prose prose-garden prose-invert max-w-none
+  <div class="prose prose-garden prose-invert max-w-none
     prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tight
     prose-h2:text-[clamp(18px,3vw,23px)] prose-h2:mt-10 prose-h2:mb-4
     prose-h3:text-[17px] prose-h3:mt-7 prose-h3:mb-3
     prose-p:font-light prose-p:leading-[1.85] prose-p:text-g-mid prose-p:text-[14.5px]
     prose-li:text-g-mid prose-li:font-light
     prose-pre:text-[13px] prose-pre:leading-relaxed
-  "
-  >
+  ">
     {@html note.html}
   </div>
 
   <!-- Backlinks -->
   {#if note.backlinks?.length}
     <section class="mt-14" aria-label="Backlinks">
-      <h2
-        class="text-[9.5px] uppercase tracking-[0.25em] text-g-low mb-4
-        flex items-center gap-3 font-body font-medium after:content-[''] after:flex-1 after:h-px after:bg-white/[0.07]"
-      >
+      <h2 class="text-[9.5px] uppercase tracking-[0.25em] text-g-low mb-4
+        flex items-center gap-3 font-body font-medium after:content-[''] after:flex-1 after:h-px after:bg-white/[0.07]">
         Backlinks ({note.backlinks.length})
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -124,13 +113,11 @@
           >
             <span aria-hidden="true" class="text-sm">{bl.emoji}</span>
             <span class="truncate">{bl.title}</span>
-            <span
-              class="ml-auto text-g-low text-[10px] shrink-0"
-              aria-hidden="true">→</span
-            >
+            <span class="ml-auto text-g-low text-[10px] shrink-0" aria-hidden="true">→</span>
           </a>
         {/each}
       </div>
     </section>
   {/if}
+
 </article>

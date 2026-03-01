@@ -23,6 +23,17 @@ jobs:
       - name: Checkout garden repo
         uses: actions/checkout@v4
 
+      - name: Checkout private notes repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.NOTES_REPO }}
+          token: ${{ secrets.NOTES_ACCESS_TOKEN }}
+          path: notes
+          sparse-checkout: |
+            *.md
+            **/*.md
+          sparse-checkout-cone-mode: false
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -30,13 +41,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm i
+        run: npm ci
 
       - name: Build
         run: npm run build
         env:
           BASE_PATH: ${{ secrets.BASE_PATH || '' }}
-          VITE_GARDEN_API_URL: ${{ vars.VITE_GARDEN_API_URL }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

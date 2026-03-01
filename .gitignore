@@ -1,13 +1,29 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
-CLOUDFLARE.md
-.svelte-kit/
-pnpm-lock.yaml
-.env
-# Cloudflare Types
-/worker-configuration.d.ts
+worker/node_modules/
 
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
+# ── Build outputs ─────────────────────────────────────────────────────────────
+build/
+.svelte-kit/
+.vercel/
+
+# ── Environment variables ─────────────────────────────────────────────────────
+.env
+.env.*
 !.env.example
+
+# ── Notes (your private vault — never commit to the public repo) ──────────────
+notes/
+
+# ── Wrangler / Cloudflare ─────────────────────────────────────────────────────
+worker/.wrangler/
+worker/dist/
+
+# ── OS junk ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp

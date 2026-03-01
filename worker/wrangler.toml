@@ -9,11 +9,27 @@ compatibility_date = "2024-02-01"
 binding = "NOTES_CACHE"
 id      = "3f9401bea54846b4ae67b0de0d44589e"
 
-# Secrets set via `wrangler secret put`:
-#   GITHUB_TOKEN       – fine-grained PAT, read-only Contents on your notes repo
-#   NOTES_REPO         – "your-username/your-notes-repo"
-#   ALLOWED_ORIGINS    – comma-separated origins, e.g. "https://yourname.github.io,http://localhost:5173"
+# ── Required secrets (set via `wrangler secret put <NAME>`) ─────────────────
+#   GITHUB_TOKEN        Fine-grained PAT, read-only Contents on your notes repo
+#   NOTES_REPO          "your-username/your-notes-repo"
+#   ALLOWED_ORIGINS     Comma-separated allowed origins, e.g.
+#                       "https://yourname.github.io,http://localhost:5173"
+#   INVALIDATE_SECRET   Any strong random string for the /api/invalidate endpoint
 
+# ── Optional vars ────────────────────────────────────────────────────────────
 [vars]
-# Cache TTL in seconds (how long compiled notes are served from KV before re-fetching)
+# How long (seconds) to serve notes from KV before re-fetching from GitHub.
 CACHE_TTL = "120"
+
+# If your .md files live in a subdirectory of the repo, set this.
+# Example: NOTES_SUBDIR = "notes"    (reads repo/notes/*.md)
+# Leave empty ("") to read from the repo root.
+NOTES_SUBDIR = ""
+
+# Git branch to read notes from. "HEAD" follows the default branch.
+NOTES_BRANCH = "HEAD"
+
+# Set to "true" only if notes are nested more than 1 folder deep.
+# Uses 2 subrequests instead of 1 (still well within limits).
+# For flat vaults or single-level folders, leave as "false".
+NOTES_RECURSIVE = "false"

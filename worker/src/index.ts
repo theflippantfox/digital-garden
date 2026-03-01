@@ -12,8 +12,8 @@
  */
 
 import { parseNoteFile, attachBacklinks, titleToSlug } from './parser';
-import { listMarkdownFiles, fetchFileByPath } from './github';
-import type { Env, Note, NoteSummary, ApiNotesResponse, ApiNoteResponse, GHFile } from './types';
+import { fetchAllNoteFiles, fetchAllNoteFilesRecursive } from './github';
+import type { Env, Note, NoteSummary, ApiNotesResponse, ApiNoteResponse } from './types';
 
 // ── CORS helper ───────────────────────────────────────────────────────────────
 
@@ -84,22 +84,23 @@ async function bustCache(env: Env): Promise<void> {
 // ── Fetch + parse all notes from GitHub ──────────────────────────────────────
 
 async function fetchAllNotes(env: Env): Promise<Note[]> {
-  const files: GHFile[] = await listMarkdownFiles(env.NOTES_REPO, env.GITHUB_TOKEN);
-  const mdFiles = files.filter(f => f.type === 'file' && f.name.endsWith('.md'));
+  // Use GraphQL to fetch ALL notes in a single subrequest — no matter vault size.
+  // Previously this used N+1 REST calls (list dir + one fetch per file), which
+  // broke on vaults with 50+ notes due to Cloudflare's subrequest limit.
 
-  // First pass: collect slugs for wikilink validation
-  const allSlugs = mdFiles.map(f => {
-    const title = f.name.replace(/\.md$/i, '');
-    return titleToSlug(title);
-  });
+  const recursive = (env as unknown as Record<string,string>)['NOTES_RECURSIVE'] === 'true';
+  const subdir    = (env as unknown as Record<string,string>)['NOTES_SUBDIR'] ?? '';
+  const branch    = (env as unknown as Record<string,string>)['NOTES_BRANCH'] ?? 'HEAD';
 
-  // Second pass: fetch + parse in parallel
-  const notes = await Promise.all(
-    mdFiles.map(async file => {
-      const content = await fetchFileByPath(env.NOTES_REPO, file.path, env.GITHUB_TOKEN);
-      return parseNoteFile(file.name, content, allSlugs);
-    })
-  );
+  const noteFiles = recursive
+    ? await fetchAllNoteFilesRecursive(env.NOTES_REPO, env.GITHUB_TOKEN, branch)
+    : await fetchAllNoteFiles(env.NOTES_REPO, env.GITHUB_TOKEN, branch, subdir);
+
+  // Collect slugs first for wikilink resolution
+  const allSlugs = noteFiles.map(f => titleToSlug(f.name.replace(/\.md$/i, '')));
+
+  // Parse synchronously — all content is already in memory, no more I/O
+  const notes = noteFiles.map(f => parseNoteFile(f.name, f.text, allSlugs));
 
   const published = notes.filter(n => n.published);
   const withLinks = attachBacklinks(published);

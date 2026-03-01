@@ -54,7 +54,7 @@ function parseStatus(raw: unknown): NoteStatus {
 function resolveWikilinks(html: string, allSlugs: string[]): string {
   return html.replace(/\[\[([^\]]+)\]\]/g, (_, inner: string) => {
     const [titlePart, displayPart] = inner.split('|');
-    const slug    = titleToSlug(titlePart.trim());
+    const slug = titleToSlug(titlePart.trim());
     const display = (displayPart ?? titlePart).trim();
     if (allSlugs.includes(slug)) {
       return `<a href="/notes/${slug}" class="wikilink" data-slug="${slug}">${display}</a>`;
@@ -79,53 +79,53 @@ export function loadAllNotes(): Note[] {
 
   // Pass 1: collect slugs for wikilink validation
   const allSlugs: string[] = files.map(f => {
-    const raw     = fs.readFileSync(path.join(NOTES_DIR, f), 'utf-8');
+    const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf-8');
     const { data } = matter(raw);
-    const title   = (data.title as string | undefined) ?? path.basename(f, '.md');
+    const title = (data.title as string | undefined) ?? path.basename(f, '.md');
     return (data.slug as string | undefined) ?? titleToSlug(title);
   });
 
   // Pass 2: full parse
   const notes: Note[] = files.map(filename => {
-    const raw       = fs.readFileSync(path.join(NOTES_DIR, filename), 'utf-8');
+    const raw = fs.readFileSync(path.join(NOTES_DIR, filename), 'utf-8');
     const { data: fm, content } = matter(raw);
 
     const titleFromFile = path.basename(filename, '.md');
-    const title     = (fm.title as string | undefined) ?? titleFromFile;
-    const slug      = (fm.slug  as string | undefined) ?? titleToSlug(title);
+    const title = (fm.title as string | undefined) ?? titleFromFile;
+    const slug = (fm.slug as string | undefined) ?? titleToSlug(title);
 
     // Tags — first tag is the primary; fall back to a 'general' tag
-    const rawTags   = fm.tags as string[] | string | undefined;
+    const rawTags = fm.tags as string[] | string | undefined;
     const tags: string[] = Array.isArray(rawTags)
       ? rawTags.map(String)
       : rawTags ? [String(rawTags)]
-      : ['general'];
+        : ['general'];
 
     const primaryTag = tags[0].toLowerCase().trim();
 
     // Accent and emoji — derived from primaryTag unless explicitly overridden
-    const accent  = tagToAccent((fm.accent as string | undefined) ?? primaryTag);
-    const emoji   = (fm.emoji as string | undefined) ?? tagToEmoji(primaryTag);
+    const accent = tagToAccent((fm.accent as string | undefined) ?? primaryTag);
+    const emoji = (fm.emoji as string | undefined) ?? tagToEmoji(primaryTag);
 
-    const status   = parseStatus(fm.status);
-    const published = fm.published !== false;
+    const status = parseStatus(fm.status);
+    const published = fm.published !== true;
 
-    const rawHtml  = marked(content) as string;
-    const html     = resolveWikilinks(rawHtml, allSlugs);
-    const excerpt  = (fm.description as string | undefined) ?? (fm.excerpt as string | undefined) ?? makeExcerpt(content);
+    const rawHtml = marked(content) as string;
+    const html = resolveWikilinks(rawHtml, allSlugs);
+    const excerpt = (fm.description as string | undefined) ?? (fm.excerpt as string | undefined) ?? makeExcerpt(content);
 
     return {
       slug, title,
-      date:       formatDate(fm.date),
-      dateRaw:    isoDate(fm.date),
+      date: formatDate(fm.date),
+      dateRaw: isoDate(fm.date),
       primaryTag,
       tags,
       accent,
       emoji,
       excerpt,
       html,
-      links:      countWikilinks(content),
-      backlinks:  [],
+      links: countWikilinks(content),
+      backlinks: [],
       status,
       published,
     };
@@ -146,7 +146,7 @@ export function loadAllNotes(): Note[] {
 
   _cache = notes
     .filter(n => n.published)
-    .map(n  => ({ ...n, backlinks: backlinkMap[n.slug] ?? [] }))
+    .map(n => ({ ...n, backlinks: backlinkMap[n.slug] ?? [] }))
     .sort((a, b) => (b.dateRaw ?? '').localeCompare(a.dateRaw ?? ''));
 
   return _cache;
