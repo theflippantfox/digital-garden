@@ -1,0 +1,8 @@
+# wrangler.toml
+name = "digital-garden"  # or your Pages project name
+compatibility_date = "2024-09-23"  # or any date >= this; use latest possible for best compat
+compatibility_flags = ["nodejs_compat"]
+
+# Optional but recommended for Pages
+[site]
+bucket = ".svelte-kit/cloudflare"  # matches adapter output
