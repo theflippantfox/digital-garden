@@ -1,23 +1,23 @@
 <script lang="ts">
-  import { base } from '$app/paths';
-  import StatusBadge from './StatusBadge.svelte';
-  import { ACCENT_STYLES } from '$lib/utils/tagColor';
-  import type { NoteSummary } from '$lib/types';
+  import { base } from "$app/paths";
+  import StatusBadge from "./StatusBadge.svelte";
+  import { ACCENT_STYLES } from "$lib/utils/tagColor";
+  import type { NoteSummary } from "$lib/types";
 
   export let note: NoteSummary;
   export let index: number = 0;
 
   // Pebble-corner shapes — reads as a card, just gently worn
   const SHAPES = [
-    '18px 14px 18px 16px / 16px 18px 14px 18px',
-    '14px 18px 16px 18px / 18px 14px 18px 16px',
-    '16px 16px 18px 14px / 14px 16px 16px 18px',
-    '18px 14px 14px 18px / 16px 18px 16px 14px',
-    '14px 18px 18px 14px / 18px 14px 14px 18px',
-    '16px 18px 14px 16px / 18px 16px 18px 14px',
+    "18px 14px 18px 16px / 16px 18px 14px 18px",
+    "14px 18px 16px 18px / 18px 14px 18px 16px",
+    "16px 16px 18px 14px / 14px 16px 16px 18px",
+    "18px 14px 14px 18px / 16px 18px 16px 14px",
+    "14px 18px 18px 14px / 18px 14px 14px 18px",
+    "16px 18px 14px 16px / 18px 16px 18px 14px",
   ];
 
-  $: shape  = SHAPES[index % SHAPES.length];
+  $: shape = SHAPES[index % SHAPES.length];
   $: accent = ACCENT_STYLES[note.accent];
 
   // NOTE: No animation-delay to avoid blank-space flicker in the grid.
@@ -36,11 +36,8 @@
 >
   <!-- Corner glow orb -->
   <div
-    class="absolute -top-5 -right-5 w-20 h-20 rounded-full opacity-20 blur-2xl pointer-events-none
-      {note.accent === 'violet' ? 'bg-[#b44dff]' : ''}
-      {note.accent === 'coral'  ? 'bg-[#ff5c3a]' : ''}
-      {note.accent === 'cyan'   ? 'bg-[#00f0ff]' : ''}
-      {note.accent === 'lime'   ? 'bg-[#b8ff3a]' : ''}"
+    class="absolute -top-5 -right-5 w-20 h-20 rounded-full opacity-20 blur-2xl pointer-events-none"
+    style="background:{accent.hex}"
     aria-hidden="true"
   ></div>
 
@@ -57,17 +54,23 @@
   </div>
 
   <!-- Title -->
-  <h2 class="font-display font-bold text-[17px] leading-snug tracking-tight text-g-text mb-2.5 line-clamp-2">
+  <h2
+    class="font-display font-bold text-[17px] leading-snug tracking-tight text-g-text mb-2.5 line-clamp-2"
+  >
     {note.title}
   </h2>
 
   <!-- Excerpt -->
-  <p class="text-[12.5px] text-g-mid font-light leading-relaxed line-clamp-3 mb-4">
+  <p
+    class="text-[12.5px] text-g-mid font-light leading-relaxed line-clamp-3 mb-4"
+  >
     {note.excerpt}
   </p>
 
   <!-- Footer -->
-  <footer class="flex items-center justify-between pt-3 border-t border-white/[0.07] mt-auto">
+  <footer
+    class="flex items-center justify-between pt-3 border-t border-white/[0.07] mt-auto"
+  >
     <div class="flex items-center gap-2">
       <StatusBadge status={note.status} />
     </div>
@@ -85,5 +88,10 @@
 </a>
 
 <style>
-  a { position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  a {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 </style>

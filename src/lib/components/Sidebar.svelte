@@ -77,13 +77,24 @@
   </div>
 
   <nav class="flex flex-col px-3 pt-4 pb-10 gap-0.5">
-    <!-- All notes -->
+    <!-- Navigation -->
     <p class="sidebar-label">Garden</p>
     <a
       href="{base}/"
       class="nav-item"
-      class:nav-active={$page.url.pathname === (base || "/") ||
+      class:nav-active={$page.url.pathname === "/" ||
+        $page.url.pathname === base ||
         $page.url.pathname === base + "/"}
+      on:click={() => dispatch("close")}
+    >
+      <span>🏡</span>
+      <span>Home</span>
+    </a>
+    <a
+      href="{base}/notes"
+      class="nav-item"
+      class:nav-active={$page.url.pathname === base + "/notes" ||
+        $page.url.pathname === base + "/notes/"}
       on:click={() => dispatch("close")}
     >
       <span>🌿</span>

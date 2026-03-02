@@ -1,18 +1,19 @@
-import { loadNote, loadAllNotes } from '$lib/notes';
+import { loadNote } from '$lib/notes';
 import { API_MODE } from '$lib/api';
 import { error } from '@sveltejs/kit';
-import type { PageServerLoad, EntryGenerator } from './$types';
+import type { PageServerLoad } from './$types';
 import type { Note } from '$lib/types';
 
-export const pre = true;
+export const load: PageServerLoad<{ note: Note }> = async ({ params, fetch }) => {
+  if (API_MODE) {
+    const apiUrl = import.meta.env.VITE_GARDEN_API_URL as string;
+    const res = await fetch(`${apiUrl}/api/notes/${encodeURIComponent(params.slug)}`);
+    if (res.status === 404) throw error(404, 'Note not found');
+    if (!res.ok) throw error(500, `Worker returned ${res.status}`);
+    const data = await res.json() as { note: Note };
+    return { note: data.note };
+  }
 
-export const entries: EntryGenerator = () => {
-  if (API_MODE) return []; // dynamic mode — no prerendered pages
-  return loadAllNotes().map(n => ({ slug: n.slug }));
-};
-
-export const load: PageServerLoad<{ note: Note | null }> = ({ params }) => {
-  if (API_MODE) return { note: null }; // +page.ts handles it
   const note = loadNote(params.slug);
   if (!note) throw error(404, `Note "${params.slug}" not found`);
   return { note };

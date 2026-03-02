@@ -44,7 +44,7 @@
   <article class="flex-1 min-w-0 px-5 md:px-10 xl:pl-10 xl:pr-0 max-w-[720px]">
     <!-- Back -->
     <a
-      href="{base}/"
+      href="{base}/notes"
       class="inline-flex items-center gap-2 text-[12px] text-g-mid font-body font-light
         px-4 py-2 mb-8 border border-white/[0.07] bg-g-surface no-underline
         hover:text-[#b44dff] hover:border-[rgba(180,77,255,0.35)] hover:bg-[rgba(180,77,255,0.1)]
@@ -88,7 +88,7 @@
       <div class="flex flex-wrap gap-1.5 mb-8">
         {#each note.tags as tag}
           <a
-            href="{base}/?tag={encodeURIComponent(tag)}"
+            href="{base}/notes?tag={encodeURIComponent(tag)}"
             class="text-[10px] font-medium text-g-low border border-white/[0.07]
               px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
             style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
@@ -151,16 +151,19 @@
   </article>
 
   <!-- ── Right panel (xl+ only) ─────────────────────────────────── -->
-  <aside class="hidden xl:flex flex-col gap-5 w-[260px] shrink-0 pt-[72px]">
+  <aside
+    class="hidden xl:flex flex-col gap-5 w-[300px] shrink-0 pt-[72px]
+    border-l border-white/[0.05] pl-6"
+  >
     <!-- Sticky wrapper -->
-    <div class="sticky top-4 flex flex-col gap-5">
+    <div class="sticky top-4 flex flex-col gap-5 w-full">
       <!-- Local graph -->
       <LocalGraph {note} {allNotes} />
 
       <!-- Backlinks -->
       {#if note.backlinks?.length}
         <div
-          class="rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
+          class="w-full rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
           border border-white/[0.07] bg-g-surface"
         >
           <div class="px-3.5 py-2.5 border-b border-white/[0.06]">

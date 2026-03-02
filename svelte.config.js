@@ -6,9 +6,12 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      routes: { include: ['/*'], exclude: ['<all>'] }
-    }),
-    paths: { base: process.env.BASE_PATH ?? '' }
+      // Routes that can't be server-rendered (D3 canvas, pure interactivity)
+      routes: {
+        include: ['/*'],
+        exclude: ['<all>']
+      }
+    })
   }
 };
 

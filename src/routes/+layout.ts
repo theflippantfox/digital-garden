@@ -1,23 +1,8 @@
 /**
- * API MODE layout loader — runs in the browser, fetches from Cloudflare Worker.
- * Only active when VITE_GARDEN_API_URL is set.
+ * Universal layout load — just passes server data through.
+ * No ssr:false — SSR is now enabled; the server load handles data fetching.
+ * This file stays minimal so SvelteKit doesn't override the server load behaviour.
  */
-import { fetchNotes, API_MODE } from '$lib/api';
 import type { LayoutLoad } from './$types';
-import type { GardenData } from '$lib/types';
 
-export const ssr = false; // client-side only when in API mode
-
-export const load: LayoutLoad<GardenData> = async ({ fetch }) => {
-  if (!API_MODE) {
-    // Static mode: server load handles it, pass through
-    return { notes: [], allTags: [] };
-  }
-
-  try {
-    return await fetchNotes(fetch);
-  } catch (err) {
-    console.error('[layout] Failed to fetch notes from API:', err);
-    return { notes: [], allTags: [] };
-  }
-};
+export const load: LayoutLoad = ({ data }) => data;
