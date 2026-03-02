@@ -105,6 +105,15 @@
         {totalNotes}
       </span>
     </a>
+    <a
+      href="{base}/notes/index"
+      class="nav-item"
+      class:nav-active={$page.url.pathname.startsWith(base + "/notes/index")}
+      on:click={() => dispatch("close")}
+    >
+      <span>🔤</span>
+      <span>A → Z Index</span>
+    </a>
 
     <!-- Tags with expandable note lists -->
     {#if tagGroups.length}
