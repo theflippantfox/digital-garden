@@ -12,6 +12,9 @@ build/
 .env.*
 !.env.example
 
+# ── Notes (your private vault — never commit to the public repo) ──────────────
+/notes/
+
 # ── Wrangler / Cloudflare ─────────────────────────────────────────────────────
 worker/.wrangler/
 worker/dist/
