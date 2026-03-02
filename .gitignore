@@ -34,3 +34,8 @@ Thumbs.db
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# lock files
+pnpm-lock.yaml
+yarn.lock
+package-lock.yaml
