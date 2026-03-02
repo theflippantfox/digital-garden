@@ -3,6 +3,8 @@ import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { Note } from '$lib/types';
 
+export const prerendered = true;
+
 export const load: PageLoad<{ note: Note }> = async ({ params, fetch, parent }) => {
   if (!API_MODE) {
     // Static mode: note comes from server load
