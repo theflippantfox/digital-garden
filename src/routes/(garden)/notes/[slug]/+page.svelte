@@ -134,7 +134,7 @@
       {/if}
 
       <!-- Back button — bottom right -->
-      <div class="flex justify-end mt-10">
+      <div class="flex mt-6">
         <button
           on:click={() => history.back()}
           class="inline-flex items-center gap-2 text-[12px] text-g-mid font-body font-light

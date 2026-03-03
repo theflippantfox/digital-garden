@@ -1,17 +1,14 @@
 {
   "name": "digital-garden",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:cloudflare": "PLATFORM=cloudflare vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
-    "@sveltejs/adapter-cloudflare": "^7.2.8",
-    "@sveltejs/adapter-vercel": "^6.3.3",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "@tailwindcss/typography": "^0.5.10",
@@ -27,9 +24,13 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "d3": "^7.9.0",
+    "@sveltejs/adapter-cloudflare": "^7.2.8",
+    "@sveltejs/adapter-vercel": "^6.3.3",
+    "graphology": "^0.26.0",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "gray-matter": "^4.0.3",
-    "marked": "^11.0.0"
+    "marked": "^11.0.0",
+    "sigma": "^3.0.0"
   },
   "type": "module"
 }

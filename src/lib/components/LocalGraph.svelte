@@ -1,182 +1,158 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
-  import { browser } from "$app/environment";
   import { accentStyle } from "$lib/utils/tagColor";
-  import type { Note, NoteSummary, Accent } from "$lib/types";
+  import type { Note, NoteSummary } from "$lib/types";
 
   export let note: Note;
   export let allNotes: NoteSummary[] = [];
 
   // ── Build local subgraph ──────────────────────────────────────────────────────
 
-  interface LNode {
-    id: string;
-    title: string;
-    hex: string;
-    emoji: string;
-    isRoot: boolean;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    fx: number | null;
-    fy: number | null;
-  }
-  interface LLink {
-    source: string | LNode;
-    target: string | LNode;
-  }
-
-  // Neighbors = backlinks (incoming) + outgoing (notes whose backlinks include this slug)
+  // Incoming: notes that link to this note (backlinks)
   const incomingSlugs = new Set(note.backlinks.map((bl) => bl.slug));
+  // Outgoing: notes this note links to (notes whose backlinks include current slug)
   const outgoingSlugs = new Set(
     allNotes
       .filter(
         (n) =>
           n.slug !== note.slug &&
-          n.backlinks?.some((bl) => bl.slug === note.slug),
+          (n.backlinks ?? []).some((bl) => bl.slug === note.slug),
       )
       .map((n) => n.slug),
   );
   const neighborSlugs = new Set([...incomingSlugs, ...outgoingSlugs]);
-
+  const hasConnections = neighborSlugs.size > 0;
   const noteMap = new Map(allNotes.map((n) => [n.slug, n]));
 
-  const lNodes: LNode[] = [];
-  const lLinks: LLink[] = [];
+  // ── Component state ───────────────────────────────────────────────────────────
 
-  // Root node
-  lNodes.push({
-    id: note.slug,
-    title: note.title,
-    hex: accentStyle(note.accent)?.hex ?? "#b44dff",
-    emoji: note.emoji,
-    isRoot: true,
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    fx: null,
-    fy: null,
-  });
+  let container: HTMLDivElement;
+  let sigmaInst: any = null;
 
-  // Neighbor nodes + edges
-  for (const slug of neighborSlugs) {
-    const n = noteMap.get(slug);
-    if (!n) continue;
-    lNodes.push({
-      id: n.slug,
-      title: n.title,
-      hex: accentStyle(n.accent)?.hex ?? "#888",
-      emoji: n.emoji,
-      isRoot: false,
-      x: 0,
-      y: 0,
-      vx: 0,
-      vy: 0,
-      fx: null,
-      fy: null,
-    });
-    lLinks.push({ source: note.slug, target: slug });
-  }
-
-  const lNodeMap = new Map(lNodes.map((n) => [n.id, n]));
-  const hasConnections = lLinks.length > 0;
-
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  let svgEl: SVGSVGElement;
-  let simLinks: LLink[] = [];
-  let simNodes = lNodes;
-  let hoveredId: string | null = null;
-  let rafId: number;
-  let W = 300,
-    H = 240;
-
-  // ── Mouse ────────────────────────────────────────────────────────────────────
-
-  function hitTest(e: MouseEvent): LNode | null {
-    const r = svgEl.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
-    let best: LNode | null = null,
-      bestD = Infinity;
-    for (const n of simNodes) {
-      const nr = n.isRoot ? 9 : 7;
-      const dx = px - n.x,
-        dy = py - n.y,
-        d = dx * dx + dy * dy;
-      if (d < (nr + 8) * (nr + 8) && d < bestD) {
-        best = n;
-        bestD = d;
-      }
-    }
-    return best;
-  }
-
-  function onMouseMove(e: MouseEvent) {
-    hoveredId = hitTest(e)?.id ?? null;
-  }
-  function onMouseLeave() {
-    hoveredId = null;
-  }
-  function onClick(e: MouseEvent) {
-    const hit = hitTest(e);
-    if (hit && !hit.isRoot) goto(`${base}/notes/${hit.id}`);
-  }
-
-  // ── D3 sim ───────────────────────────────────────────────────────────────────
-
-  function lnkSrc(l: LLink): LNode {
-    return l.source as LNode;
-  }
-  function lnkTgt(l: LLink): LNode {
-    return l.target as LNode;
-  }
+  // ── Mount ─────────────────────────────────────────────────────────────────────
 
   onMount(async () => {
-    if (!browser) return;
-    const d3 = await import("d3");
+    if (!browser || !hasConnections) return;
 
-    W = svgEl.clientWidth || 260;
-    H = svgEl.clientHeight || 240;
+    const [{ default: Graph }, { default: Sigma }, { default: forceAtlas2 }] =
+      await Promise.all([
+        import("graphology"),
+        import("sigma"),
+        import("graphology-layout-forceatlas2"),
+      ]);
 
-    const linkData: LLink[] = lLinks.map((l) => ({ ...l }));
+    const graph = new Graph({ type: "undirected", multi: false });
 
-    const sim = d3
-      .forceSimulation<LNode>(lNodes)
-      .force(
-        "link",
-        d3
-          .forceLink<LNode, LLink>(linkData)
-          .id((d) => d.id)
-          .distance(60)
-          .strength(0.8),
-      )
-      .force("charge", d3.forceManyBody<LNode>().strength(-120))
-      .force("center", d3.forceCenter(W / 2, H / 2).strength(0.15))
-      .force("collision", d3.forceCollide<LNode>().radius(18))
-      .alphaDecay(0.025)
-      .velocityDecay(0.45);
-
-    sim.on("tick", () => {
-      simLinks = linkData;
-      simNodes = lNodes;
+    // Root node
+    const rootAc = accentStyle(note.accent);
+    graph.addNode(note.slug, {
+      label: note.title,
+      x: 0,
+      y: 0,
+      size: 10,
+      color: rootAc.hex,
+      isRoot: true,
+      emoji: note.emoji,
     });
 
-    function loop() {
-      simNodes = lNodes;
-      rafId = requestAnimationFrame(loop);
+    // Neighbor nodes
+    for (const slug of neighborSlugs) {
+      const n = noteMap.get(slug);
+      if (!n) continue;
+      const ac = accentStyle(n.accent);
+      graph.addNode(slug, {
+        label: n.title,
+        x: Math.random() * 100 - 50,
+        y: Math.random() * 100 - 50,
+        size: 6,
+        color: ac.hex,
+        isRoot: false,
+        emoji: n.emoji,
+      });
+      graph.addEdge(note.slug, slug, {
+        color: rootAc.hex + "55",
+        activeColor: rootAc.hex + "bb",
+        size: 0.8,
+      });
     }
-    rafId = requestAnimationFrame(loop);
 
-    return () => sim.stop();
+    // Run FA2 synchronously — small graph, no need for worker
+    forceAtlas2.assign(graph, {
+      iterations: 120,
+      settings: {
+        gravity: 2,
+        scalingRatio: 1.5,
+        slowDown: 5,
+        adjustSizes: false,
+      },
+    });
+
+    // Sigma
+    let _hovered: string | null = null;
+
+    sigmaInst = new Sigma(graph, container, {
+      renderEdgeLabels: false,
+      labelFont: '"Epilogue", sans-serif',
+      labelColor: { color: "rgba(255,255,255,0.75)" },
+      labelSize: 9,
+      labelWeight: "500",
+      labelRenderedSizeThreshold: -Infinity, // always show labels at this scale
+      stagePadding: 20,
+      minCameraRatio: 0.5,
+      maxCameraRatio: 4,
+      enableEdgeEvents: false,
+
+      nodeReducer(node: string, data: any) {
+        const res = { ...data };
+        if (_hovered) {
+          if (node === _hovered) {
+            res.size = data.size * 1.6;
+            res.zIndex = 10;
+          } else if (graph.areNeighbors(_hovered, node)) {
+            res.size = data.size * 1.2;
+            res.zIndex = 5;
+          } else {
+            res.color = "#1e1e2e";
+            res.label = "";
+            res.size = data.size * 0.7;
+          }
+        }
+        return res;
+      },
+
+      edgeReducer(edge: string, data: any) {
+        const res = { ...data };
+        if (_hovered && graph.hasExtremity(edge, _hovered)) {
+          res.color = data.activeColor;
+          res.size = 1.5;
+        } else if (_hovered) {
+          res.hidden = true;
+        }
+        return res;
+      },
+    });
+
+    // Hover
+    sigmaInst.on("enterNode", ({ node }: { node: string }) => {
+      _hovered = node;
+      sigmaInst.refresh();
+    });
+    sigmaInst.on("leaveNode", () => {
+      _hovered = null;
+      sigmaInst.refresh();
+    });
+
+    // Click neighbor → navigate
+    sigmaInst.on("clickNode", ({ node }: { node: string }) => {
+      if (node !== note.slug) goto(`${base}/notes/${node}`);
+    });
   });
 
   onDestroy(() => {
-    if (browser) cancelAnimationFrame(rafId);
+    if (browser) sigmaInst?.kill();
   });
 </script>
 
@@ -200,7 +176,6 @@
   </div>
 
   {#if !hasConnections}
-    <!-- Empty state -->
     <div class="flex flex-col items-center justify-center h-[200px] gap-2 px-4">
       <span class="text-2xl opacity-30">✦</span>
       <p class="text-[11px] text-g-low text-center leading-relaxed">
@@ -212,103 +187,9 @@
       </p>
     </div>
   {:else}
-    <!-- Graph SVG -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <svg
-      bind:this={svgEl}
-      class="w-full"
-      style="height:240px"
-      on:mousemove={onMouseMove}
-      on:mouseleave={onMouseLeave}
-      on:click={onClick}
-      style:cursor={hoveredId && hoveredId !== note.slug
-        ? "pointer"
-        : "default"}
-    >
-      <defs>
-        <radialGradient id="lg-vignette" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="transparent" />
-          <stop offset="100%" stop-color="#131320" stop-opacity="0.5" />
-        </radialGradient>
-        <filter id="lg-glow" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="3" result="b" />
-          <feMerge
-            ><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge
-          >
-        </filter>
-      </defs>
-
-      <!-- Edges -->
-      {#each simLinks as link}
-        {@const s = lnkSrc(link)}
-        {@const t = lnkTgt(link)}
-        {@const lit = hoveredId === s.id || hoveredId === t.id}
-        <line
-          x1={s.x ?? W / 2}
-          y1={s.y ?? H / 2}
-          x2={t.x ?? W / 2}
-          y2={t.y ?? H / 2}
-          stroke={lit
-            ? (lNodeMap.get(s.isRoot ? t.id : s.id)?.hex ?? "#b44dff")
-            : "rgba(255,255,255,0.2)"}
-          stroke-opacity={lit ? 0.85 : 0.35}
-          stroke-width={lit ? 1.5 : 0.9}
-          filter={lit ? "url(#lg-glow)" : undefined}
-        />
-      {/each}
-
-      <!-- Nodes -->
-      {#each simNodes as n (n.id)}
-        {@const r = n.isRoot ? 9 : 6}
-        {@const hov = hoveredId === n.id}
-        <g transform="translate({n.x ?? W / 2},{n.y ?? H / 2})">
-          {#if hov || n.isRoot}
-            <circle
-              r={r + 5}
-              fill={n.hex}
-              fill-opacity="0.12"
-              stroke={n.hex}
-              stroke-opacity="0.3"
-              stroke-width="1"
-            />
-          {/if}
-          <circle
-            {r}
-            fill={n.hex}
-            fill-opacity={n.isRoot ? 1 : hov ? 0.95 : 0.7}
-            stroke="rgba(255,255,255,{n.isRoot ? 0.3 : 0.15})"
-            stroke-width={n.isRoot ? 1.5 : 0.8}
-            filter={n.isRoot ? "url(#lg-glow)" : undefined}
-          />
-          <!-- Emoji on root -->
-          {#if n.isRoot}
-            <text
-              text-anchor="middle"
-              dominant-baseline="central"
-              font-size="8"
-              style="pointer-events:none;user-select:none">{n.emoji}</text
-            >
-          {/if}
-          <!-- Label -->
-          <text
-            y={r + 10}
-            text-anchor="middle"
-            font-size={n.isRoot ? 9 : 8}
-            fill="white"
-            fill-opacity={n.isRoot ? 0.85 : hov ? 0.8 : 0.45}
-            style="pointer-events:none;user-select:none"
-            >{n.title.length > 18 ? n.title.slice(0, 18) + "…" : n.title}</text
-          >
-        </g>
-      {/each}
-
-      <rect
-        width="100%"
-        height="100%"
-        fill="url(#lg-vignette)"
-        style="pointer-events:none"
-      />
-    </svg>
+    <div
+      bind:this={container}
+      style="width:100%;height:220px;background:#131320"
+    ></div>
   {/if}
 </div>

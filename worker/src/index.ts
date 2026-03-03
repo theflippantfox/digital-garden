@@ -205,7 +205,18 @@ export default {
   // ── Cron keep-alive ────────────────────────────────────────────────────────
   // Runs every 5 minutes to prevent the isolate from going cold.
   // Just does a lightweight KV read — enough to keep the Worker warm.
+
+  // ── Cron keep-alive ────────────────────────────────────────────────────────
+  // Runs every 5 minutes to keep both this Worker and the Pages Function warm.
   async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    // Keep Worker warm — lightweight KV read
     await env.NOTES_CACHE.get('notes:ts');
+
+    // Keep Pages Function warm — ping its root route
+    const pagesUrl = (env as unknown as Record<string, string>)['PAGES_URL'];
+    if (pagesUrl) {
+      await fetch(pagesUrl, { method: 'GET', headers: { 'x-keepalive': '1' } })
+        .catch(() => { }); // ignore errors — don't let a Pages hiccup break the cron
+    }
   },
 };

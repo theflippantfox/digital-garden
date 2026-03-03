@@ -1,398 +1,341 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
   import { accentStyle } from "$lib/utils/tagColor";
   import type { PageData } from "./$types";
-  import type { Accent } from "$lib/types";
+  import type { NoteSummary } from "$lib/types";
 
   export let data: PageData;
 
-  // ── Types ────────────────────────────────────────────────────────────────────
+  // ── Data ─────────────────────────────────────────────────────────────────────
 
-  interface GNode {
-    id: string;
-    title: string;
-    hex: string;
-    accent: Accent;
-    emoji: string;
-    tag: string;
-    status: string;
-    degree: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    fx: number | null;
-    fy: number | null;
-  }
-  interface GLink {
-    source: string | GNode;
-    target: string | GNode;
+  $: notes = (data.notes ?? []) as NoteSummary[];
+  $: allTags = [...new Set(notes.map((n) => n.primaryTag))].sort();
+
+  function nodeSize(degree: number) {
+    return Math.max(4, Math.min(20, 4 + Math.sqrt(degree) * 3.5));
   }
 
-  // ── Build graph ───────────────────────────────────────────────────────────────
+  // ── Svelte UI state ──────────────────────────────────────────────────────────
 
-  const nodes: GNode[] = data.notes.map((n) => ({
-    id: n.slug,
-    title: n.title,
-    hex: accentStyle(n.accent)?.hex ?? "#b44dff",
-    accent: n.accent as Accent,
-    emoji: n.emoji,
-    tag: n.primaryTag,
-    status: n.status,
-    degree: 0,
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    fx: null,
-    fy: null,
-  }));
-
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
-  // Build edges bidirectionally from backlinks
-  const edgeSet = new Set<string>();
-  const rawLinks: GLink[] = [];
-
-  for (const note of data.notes) {
-    for (const bl of note.backlinks ?? []) {
-      if (!nodeMap.has(bl.slug)) continue;
-      const a = note.slug < bl.slug ? note.slug : bl.slug;
-      const b = note.slug < bl.slug ? bl.slug : note.slug;
-      const key = `${a}|${b}`;
-      if (!edgeSet.has(key)) {
-        edgeSet.add(key);
-        rawLinks.push({ source: a, target: b });
-      }
-    }
-  }
-
-  // Degree from edge count
-  for (const l of rawLinks) {
-    const s = typeof l.source === "string" ? l.source : linkId(l.source);
-    const t = typeof l.target === "string" ? l.target : linkId(l.target);
-    nodeMap.get(s)!.degree++;
-    nodeMap.get(t)!.degree++;
-  }
-
-  const allTags = [...new Set(nodes.map((n) => n.tag))].sort();
-  const totalEdges = rawLinks.length;
-
-  // ── Reactive state ────────────────────────────────────────────────────────────
-
-  let svgEl: SVGSVGElement;
-  let simLinks: GLink[] = [];
-  let simNodes = nodes;
-
-  let width = 900,
-    height = 650;
-  let tx = 0,
-    ty = 0,
-    scale = 1;
+  let sigmaContainer: HTMLDivElement;
   let searchQuery = "";
   let highlightTag = "";
+  let showPhysics = false;
+  let isRunning = true;
+
+  let gravity = 1;
+  let scalingRatio = 2;
+  let slowDown = 5;
+
   let hoveredId: string | null = null;
-  let tooltipX = 0,
-    tooltipY = 0;
-  let rafId: number;
+  let mouseX = 0,
+    mouseY = 0;
 
-  let draggingNode: GNode | null = null;
-  let isPanning = false;
-  let panSX = 0,
-    panSY = 0,
-    panOX = 0,
-    panOY = 0;
+  // ── Sigma closure state (non-reactive) ───────────────────────────────────────
 
-  // ── Visual helpers ────────────────────────────────────────────────────────────
+  let sigmaInst: any = null;
+  let graphInst: any = null;
+  let fa2Inst: any = null;
 
-  function nodeRadius(n: GNode) {
-    return Math.max(5, Math.min(20, 5 + Math.sqrt(n.degree) * 4));
+  let _hovered: string | null = null;
+  let _neighbors: Set<string> = new Set();
+  let _search = "";
+  let _tag = "";
+
+  $: if (sigmaInst) {
+    _search = searchQuery;
+    _tag = highlightTag;
+    sigmaInst.refresh();
   }
 
-  $: neighborIds = (() => {
-    if (!hoveredId) return null;
-    const ids = new Set<string>([hoveredId]);
-    for (const l of simLinks) {
-      const s = linkId(l.source);
-      const t = linkId(l.target);
-      if (s === hoveredId) ids.add(t);
-      if (t === hoveredId) ids.add(s);
-    }
-    return ids;
-  })();
+  // ── Physics ──────────────────────────────────────────────────────────────────
 
-  $: filteredIds = (() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q && !highlightTag) return null;
-    return new Set(
-      nodes
-        .filter(
-          (n) =>
-            (!q || n.title.toLowerCase().includes(q) || n.tag.includes(q)) &&
-            (!highlightTag || n.tag === highlightTag),
-        )
-        .map((n) => n.id),
+  async function applyPhysics() {
+    if (!graphInst) return;
+    fa2Inst?.kill();
+    const { default: FA2Layout } = await import(
+      "graphology-layout-forceatlas2/worker"
     );
-  })();
-
-  function nodeOpacity(n: GNode): number {
-    if (filteredIds && !filteredIds.has(n.id)) return 0.07;
-    if (neighborIds && !neighborIds.has(n.id)) return 0.15;
-    return 1;
+    fa2Inst = new FA2Layout(graphInst, {
+      settings: {
+        gravity,
+        scalingRatio,
+        slowDown,
+        barnesHutOptimize: graphInst.order > 100,
+        adjustSizes: false,
+      },
+    });
+    if (isRunning) fa2Inst.start();
   }
 
-  function edgeOpacity(l: GLink): number {
-    const s = linkId(l.source),
-      t = linkId(l.target);
-    if (filteredIds && (!filteredIds.has(s) || !filteredIds.has(t)))
-      return 0.03;
-    if (neighborIds && (!neighborIds.has(s) || !neighborIds.has(t)))
-      return 0.06;
-    return hoveredId ? 0.9 : 0.35;
-  }
-
-  function edgeStroke(l: GLink): string {
-    if (!hoveredId || !neighborIds) return "rgba(255,255,255,0.3)";
-    const s = linkId(l.source),
-      t = linkId(l.target);
-    if (neighborIds.has(s) && neighborIds.has(t)) {
-      return nodeMap.get(s === hoveredId ? t : s)?.hex ?? "#b44dff";
-    }
-    return "rgba(255,255,255,0.04)";
-  }
-
-  // ── Mouse ────────────────────────────────────────────────────────────────────
-
-  function svgPt(e: MouseEvent) {
-    const r = svgEl.getBoundingClientRect();
-    return {
-      x: (e.clientX - r.left - tx) / scale,
-      y: (e.clientY - r.top - ty) / scale,
-    };
-  }
-
-  function hitTest(e: MouseEvent): GNode | null {
-    const pt = svgPt(e);
-    let best: GNode | null = null,
-      bestD = Infinity;
-    for (const n of simNodes) {
-      const r = nodeRadius(n) + 7;
-      const dx = pt.x - n.x,
-        dy = pt.y - n.y,
-        d = dx * dx + dy * dy;
-      if (d < r * r && d < bestD) {
-        best = n;
-        bestD = d;
-      }
-    }
-    return best;
-  }
-
-  function onMouseMove(e: MouseEvent) {
-    if (draggingNode) {
-      const r = svgEl.getBoundingClientRect();
-      draggingNode.fx = (e.clientX - r.left - tx) / scale;
-      draggingNode.fy = (e.clientY - r.top - ty) / scale;
-      return;
-    }
-    if (isPanning) {
-      tx = panOX + (e.clientX - panSX);
-      ty = panOY + (e.clientY - panSY);
-      return;
-    }
-    const hit = hitTest(e);
-    hoveredId = hit?.id ?? null;
-    if (hit) {
-      const r = svgEl.getBoundingClientRect();
-      tooltipX = e.clientX - r.left;
-      tooltipY = e.clientY - r.top;
-    }
-  }
-
-  function onMouseDown(e: MouseEvent) {
-    const hit = hitTest(e);
-    if (hit) {
-      draggingNode = hit;
-      hit.fx = hit.x;
-      hit.fy = hit.y;
-      // Reheat so the sim reacts to the moved node
-      sim?.alphaTarget(0.3).restart();
-    } else {
-      isPanning = true;
-      panSX = e.clientX;
-      panSY = e.clientY;
-      panOX = tx;
-      panOY = ty;
-    }
-  }
-
-  function onMouseUp() {
-    if (draggingNode) {
-      // Let the node settle naturally after release
-      sim?.alphaTarget(0);
-      draggingNode.fx = null;
-      draggingNode.fy = null;
-      draggingNode = null;
-    }
-    isPanning = false;
-  }
-
-  function onClick(e: MouseEvent) {
-    if (!isPanning) {
-      const hit = hitTest(e);
-      if (hit) goto(`${base}/notes/${hit.id}`);
-    }
-  }
-
-  function onWheel(e: WheelEvent) {
-    e.preventDefault();
-    const r = svgEl.getBoundingClientRect();
-    const mx = e.clientX - r.left,
-      my = e.clientY - r.top;
-    const f = e.deltaY < 0 ? 1.15 : 0.87;
-    const ns = Math.max(0.1, Math.min(5, scale * f));
-    tx = mx - (mx - tx) * (ns / scale);
-    ty = my - (my - ty) * (ns / scale);
-    scale = ns;
-  }
-
-  function zoom(f: number) {
-    const ns = Math.max(0.1, Math.min(5, scale * f));
-    tx = width / 2 - (width / 2 - tx) * (ns / scale);
-    ty = height / 2 - (height / 2 - ty) * (ns / scale);
-    scale = ns;
+  function toggleLayout() {
+    isRunning = !isRunning;
+    if (!fa2Inst) return;
+    if (isRunning) fa2Inst.start();
+    else fa2Inst.stop();
   }
 
   function fitView() {
-    if (!simNodes.length) return;
-    const xs = simNodes.map((n) => n.x),
-      ys = simNodes.map((n) => n.y);
-    const mnX = Math.min(...xs),
-      mxX = Math.max(...xs);
-    const mnY = Math.min(...ys),
-      mxY = Math.max(...ys);
-    const gw = mxX - mnX || 1,
-      gh = mxY - mnY || 1,
-      pad = 80;
-    const ns = Math.min((width - pad * 2) / gw, (height - pad * 2) / gh, 2);
-    scale = ns;
-    tx = width / 2 - (mnX + gw / 2) * ns;
-    ty = height / 2 - (mnY + gh / 2) * ns;
+    sigmaInst?.getCamera().animatedReset({ duration: 400 });
+  }
+  function zoomIn() {
+    sigmaInst?.getCamera().animatedZoom({ duration: 200 });
+  }
+  function zoomOut() {
+    sigmaInst?.getCamera().animatedUnzoom({ duration: 200 });
   }
 
-  // ── D3 force simulation ───────────────────────────────────────────────────────
-
-  // Exposed at module scope so drag handlers can reheat the sim
-  let sim: import("d3").Simulation<GNode, GLink> | null = null;
-
-  // Type-safe accessors for D3 link endpoints (avoids 'as' in template)
-  function linkX(endpoint: string | GNode): number {
-    return (endpoint as GNode).x ?? 0;
-  }
-  function linkY(endpoint: string | GNode): number {
-    return (endpoint as GNode).y ?? 0;
-  }
-  function linkId(endpoint: string | GNode): string {
-    return typeof endpoint === "string" ? endpoint : endpoint.id;
-  }
+  // ── Mount ────────────────────────────────────────────────────────────────────
 
   onMount(async () => {
-    const d3 = await import("d3");
+    if (!browser) return;
 
-    const readSize = () => {
-      width = svgEl.clientWidth || 900;
-      height = svgEl.clientHeight || 650;
-    };
+    const [
+      { default: Graph },
+      { default: Sigma },
+      { default: forceAtlas2 },
+      { default: FA2Layout },
+    ] = await Promise.all([
+      import("graphology"),
+      import("sigma"),
+      import("graphology-layout-forceatlas2"),
+      import("graphology-layout-forceatlas2/worker"),
+    ]);
 
-    const ro = new ResizeObserver(() => {
-      readSize();
-      sim?.force(
-        "center",
-        d3.forceCenter(width / 2, height / 2).strength(0.12),
-      );
-      sim?.alpha(0.3).restart();
-    });
-    ro.observe(svgEl);
+    graphInst = new Graph({ type: "undirected", multi: false });
 
-    await new Promise<void>((r) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => r())),
-    );
-    readSize();
+    const noteList = (data.notes ?? []) as NoteSummary[];
+    const slugSet = new Set(noteList.map((n) => n.slug));
 
-    const linkData: GLink[] = rawLinks.map((l) => ({ ...l }));
-
-    sim = d3
-      .forceSimulation<GNode>(nodes)
-      // Edge spring — pulls linked nodes toward each other
-      .force(
-        "link",
-        d3
-          .forceLink<GNode, GLink>(linkData)
-          .id((d) => d.id)
-          .distance(80)
-          .strength(0.6),
-      )
-      // Repulsion — keeps nodes apart but bounded so they can't flee
-      .force(
-        "charge",
-        d3
-          .forceManyBody<GNode>()
-          .strength((d) => -100 - d.degree * 15)
-          .distanceMin(15)
-          .distanceMax(250),
-      )
-      // Central gravity — strong enough to counter repulsion
-      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.12))
-      // Radial tether — isolated (unlinked) nodes orbit near center
-      .force(
-        "radial",
-        d3
-          .forceRadial<GNode>(
-            (d) => (d.degree === 0 ? 80 : 0),
-            width / 2,
-            height / 2,
-          )
-          .strength((d) => (d.degree === 0 ? 0.1 : 0)),
-      )
-      // Collision — prevent overlap
-      .force(
-        "collision",
-        d3
-          .forceCollide<GNode>()
-          .radius((d) => nodeRadius(d) + 8)
-          .strength(0.85),
-      )
-      .alphaDecay(0.015) // slower cool-down → more time to settle nicely
-      .velocityDecay(0.38);
-
-    sim.on("tick", () => {
-      simLinks = linkData;
-      simNodes = nodes;
+    // Nodes
+    noteList.forEach((note, i) => {
+      const ac = accentStyle(note.accent);
+      const angle = (i / noteList.length) * 2 * Math.PI;
+      graphInst.addNode(note.slug, {
+        label: note.title,
+        x: Math.cos(angle) * 200,
+        y: Math.sin(angle) * 200,
+        size: nodeSize(0),
+        color: ac.hex,
+        activeColor: ac.hex,
+        tag: note.primaryTag,
+        status: note.status,
+        emoji: note.emoji,
+        degree: 0,
+      });
     });
 
-    let fitted = false;
-    sim.on("end", () => {
-      if (!fitted) {
-        fitted = true;
-        fitView();
+    // Edges
+    const edgeSeen = new Set<string>();
+    for (const note of noteList) {
+      for (const bl of note.backlinks ?? []) {
+        if (!slugSet.has(bl.slug)) continue;
+        const key = [note.slug, bl.slug].sort().join("||");
+        if (edgeSeen.has(key)) continue;
+        edgeSeen.add(key);
+        const ac = accentStyle(note.accent);
+        graphInst.addEdgeWithKey(key, note.slug, bl.slug, {
+          color: ac.hex + "44",
+          activeColor: ac.hex + "cc",
+          size: 0.8,
+        });
+        graphInst.setNodeAttribute(
+          note.slug,
+          "degree",
+          graphInst.getNodeAttribute(note.slug, "degree") + 1,
+        );
+        graphInst.setNodeAttribute(
+          bl.slug,
+          "degree",
+          graphInst.getNodeAttribute(bl.slug, "degree") + 1,
+        );
       }
+    }
+
+    // Resize nodes by actual degree
+    graphInst.forEachNode((node: string) => {
+      graphInst.setNodeAttribute(
+        node,
+        "size",
+        nodeSize(graphInst.getNodeAttribute(node, "degree")),
+      );
     });
 
-    function loop() {
-      simNodes = nodes;
-      rafId = requestAnimationFrame(loop);
-    }
-    rafId = requestAnimationFrame(loop);
+    // Sync FA2 initial layout
+    forceAtlas2.assign(graphInst, {
+      iterations: 200,
+      settings: {
+        gravity: 1,
+        scalingRatio: 2,
+        slowDown: 10,
+        barnesHutOptimize: graphInst.order > 100,
+        adjustSizes: false,
+      },
+    });
 
-    return () => {
-      ro.disconnect();
-      sim?.stop();
+    // Sigma
+    sigmaInst = new Sigma(graphInst, sigmaContainer, {
+      renderEdgeLabels: false,
+      labelFont: '"Epilogue", sans-serif',
+      labelColor: { color: "rgba(255,255,255,0.8)" },
+      labelSize: 11,
+      labelWeight: "500",
+      labelRenderedSizeThreshold: 3,
+      stagePadding: 60,
+      minCameraRatio: 0.03,
+      maxCameraRatio: 25,
+      enableEdgeEvents: false,
+
+      nodeReducer(node: string, data: any) {
+        const res = { ...data };
+        if (_hovered) {
+          if (node === _hovered) {
+            res.size = data.size * 1.7;
+            res.zIndex = 10;
+          } else if (_neighbors.has(node)) {
+            res.size = data.size * 1.2;
+            res.zIndex = 5;
+          } else {
+            res.color = "#1e1e2e";
+            res.label = "";
+            res.size = data.size * 0.6;
+          }
+        }
+        if (_search) {
+          const q = _search.toLowerCase();
+          const hit =
+            (data.label ?? "").toLowerCase().includes(q) ||
+            (data.tag ?? "").toLowerCase().includes(q);
+          if (!hit) {
+            res.color = "#18182a";
+            res.label = "";
+            res.size = data.size * 0.4;
+          } else {
+            res.highlighted = true;
+            res.zIndex = (res.zIndex ?? 0) + 5;
+          }
+        }
+        if (_tag && data.tag !== _tag) {
+          res.color = "#18182a";
+          res.label = "";
+          res.size = data.size * 0.5;
+        }
+        return res;
+      },
+
+      edgeReducer(edge: string, data: any) {
+        const res = { ...data };
+        if (_hovered) {
+          if (graphInst.hasExtremity(edge, _hovered)) {
+            res.color = data.activeColor;
+            res.size = 2;
+          } else res.hidden = true;
+        }
+        if (_search || _tag) {
+          const [s, t] = graphInst.extremities(edge);
+          const sl = (
+            graphInst.getNodeAttribute(s, "label") ?? ""
+          ).toLowerCase();
+          const tl = (
+            graphInst.getNodeAttribute(t, "label") ?? ""
+          ).toLowerCase();
+          const sg = graphInst.getNodeAttribute(s, "tag") ?? "";
+          const tg = graphInst.getNodeAttribute(t, "tag") ?? "";
+          if (
+            _search &&
+            !sl.includes(_search.toLowerCase()) &&
+            !tl.includes(_search.toLowerCase())
+          )
+            res.hidden = true;
+          if (_tag && sg !== _tag && tg !== _tag) res.hidden = true;
+        }
+        return res;
+      },
+    });
+
+    // Events
+    sigmaInst.on("enterNode", ({ node }: { node: string }) => {
+      _hovered = node;
+      _neighbors = new Set(graphInst.neighbors(node));
+      hoveredId = node;
+      sigmaInst.refresh();
+    });
+    sigmaInst.on("leaveNode", () => {
+      _hovered = null;
+      _neighbors.clear();
+      hoveredId = null;
+      sigmaInst.refresh();
+    });
+    sigmaInst.on("clickNode", ({ node }: { node: string }) =>
+      goto(`${base}/notes/${node}`),
+    );
+
+    // Drag
+    let dragNode: string | null = null;
+    let dragging = false;
+    sigmaInst.on("downNode", (e: any) => {
+      dragging = true;
+      dragNode = e.node;
+      e.event.preventSigmaDefault();
+      e.event.original?.preventDefault();
+    });
+    sigmaInst.getMouseCaptor().on("mousemovebody", (e: any) => {
+      mouseX = e.x ?? 0;
+      mouseY = e.y ?? 0;
+      if (!dragging || !dragNode) return;
+      const pos = sigmaInst.viewportToGraph(e);
+      graphInst.setNodeAttribute(dragNode, "x", pos.x);
+      graphInst.setNodeAttribute(dragNode, "y", pos.y);
+      e.preventSigmaDefault();
+      e.original?.preventDefault();
+      e.original?.stopPropagation();
+    });
+    const stopDrag = () => {
+      dragging = false;
+      dragNode = null;
     };
+    sigmaInst.getMouseCaptor().on("mouseup", stopDrag);
+    sigmaInst.getMouseCaptor().on("mouseleave", stopDrag);
+
+    // FA2 worker
+    fa2Inst = new FA2Layout(graphInst, {
+      settings: {
+        gravity,
+        scalingRatio,
+        slowDown,
+        barnesHutOptimize: graphInst.order > 100,
+        adjustSizes: false,
+      },
+    });
+    fa2Inst.start();
   });
 
-  onDestroy(() => cancelAnimationFrame(rafId));
+  onDestroy(() => {
+    if (!browser) return;
+    fa2Inst?.kill();
+    sigmaInst?.kill();
+  });
+
+  $: hoveredNote = hoveredId ? notes.find((n) => n.slug === hoveredId) : null;
+  $: totalEdges = (() => {
+    const slugSet = new Set(notes.map((n) => n.slug));
+    const seen = new Set<string>();
+    let count = 0;
+    for (const note of notes) {
+      for (const bl of note.backlinks ?? []) {
+        if (!slugSet.has(bl.slug)) continue;
+        const key = [note.slug, bl.slug].sort().join("||");
+        if (!seen.has(key)) {
+          seen.add(key);
+          count++;
+        }
+      }
+    }
+    return count;
+  })();
 </script>
 
 <svelte:head><title>Graph · Digital Garden</title></svelte:head>
@@ -407,10 +350,8 @@
       href="{base}/"
       class="flex items-center gap-1.5 text-[11px] font-medium text-white/50 no-underline
         px-3 py-1.5 rounded-full border border-white/[0.08]
-        hover:text-white/80 hover:border-white/20 transition-all"
+        hover:text-white/80 hover:border-white/20 transition-all">← Garden</a
     >
-      ← Garden
-    </a>
 
     <div class="relative">
       <span
@@ -429,24 +370,34 @@
     </div>
 
     <div
-      class="hidden sm:flex items-center gap-4 ml-auto text-[11px] text-white/30 font-light"
+      class="hidden sm:flex items-center gap-4 text-[11px] text-white/30 font-light"
     >
-      <span>{nodes.length} notes</span>
+      <span>{notes.length} notes</span>
       <span class={totalEdges === 0 ? "text-amber-400/50" : ""}
         >{totalEdges} connections</span
       >
-      {#if totalEdges === 0}
-        <span class="text-[10px] text-amber-400/50 italic"
-          >— add [[wikilinks]] to see connections</span
-        >
-      {/if}
     </div>
 
-    <div
-      class="flex items-center gap-1.5 {totalEdges === 0
-        ? ''
-        : 'ml-auto sm:ml-0'}"
-    >
+    <div class="ml-auto flex items-center gap-1.5">
+      <button
+        on:click={() => (showPhysics = !showPhysics)}
+        class="text-[11px] px-3 py-1.5 rounded-full border transition-all
+          {showPhysics
+          ? 'text-[#b44dff] border-[rgba(180,77,255,0.4)] bg-[rgba(180,77,255,0.1)]'
+          : 'text-white/40 border-white/[0.07] hover:text-white/70 hover:border-white/20'}"
+        >Physics</button
+      >
+
+      <button
+        on:click={toggleLayout}
+        title={isRunning ? "Pause" : "Resume"}
+        class="w-7 h-7 flex items-center justify-center rounded-full border text-[10px] transition-all
+          {isRunning
+          ? 'text-[#b44dff] border-[rgba(180,77,255,0.35)] bg-[rgba(180,77,255,0.08)]'
+          : 'text-white/30 border-white/[0.07] hover:text-white/60'}"
+        >{isRunning ? "⏸" : "▶"}</button
+      >
+
       <button
         on:click={fitView}
         class="text-[11px] text-white/40 hover:text-white/75 px-3 py-1.5 rounded-full
@@ -454,13 +405,13 @@
         >Fit</button
       >
       <button
-        on:click={() => zoom(1.25)}
+        on:click={zoomIn}
         class="w-7 h-7 text-sm font-bold text-white/40 hover:text-white/75 flex items-center justify-center
           rounded-full border border-white/[0.07] hover:border-white/20 transition-all"
         >+</button
       >
       <button
-        on:click={() => zoom(0.8)}
+        on:click={zoomOut}
         class="w-7 h-7 text-sm font-bold text-white/40 hover:text-white/75 flex items-center justify-center
           rounded-full border border-white/[0.07] hover:border-white/20 transition-all"
         >−</button
@@ -468,249 +419,201 @@
     </div>
   </header>
 
-  <div class="flex flex-1 overflow-hidden">
-    <!-- SVG canvas -->
+  <div class="flex flex-1 overflow-hidden relative">
+    <!-- Graph area -->
     <div class="relative flex-1">
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <svg
-        bind:this={svgEl}
-        class="w-full h-full"
-        style="cursor:{draggingNode
-          ? 'grabbing'
-          : hoveredId
-            ? 'pointer'
-            : 'grab'}"
-        on:mousemove={onMouseMove}
-        on:mousedown={onMouseDown}
-        on:mouseup={onMouseUp}
-        on:click={onClick}
-        on:wheel|preventDefault={onWheel}
-        on:mouseleave={() => {
-          hoveredId = null;
-          onMouseUp();
-        }}
-      >
-        <defs>
-          <pattern
-            id="dot-grid"
-            x="0"
-            y="0"
-            width="28"
-            height="28"
-            patternUnits="userSpaceOnUse"
-          >
-            <circle cx="0.5" cy="0.5" r="0.7" fill="rgba(255,255,255,0.08)" />
-          </pattern>
-          <filter id="glow-node" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="6" result="b" />
-            <feMerge
-              ><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge
-            >
-          </filter>
-          <filter id="glow-edge" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="2.5" result="b" />
-            <feMerge
-              ><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge
-            >
-          </filter>
-          <radialGradient id="vignette" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stop-color="transparent" />
-            <stop offset="100%" stop-color="#0d0d14" stop-opacity="0.7" />
-          </radialGradient>
-        </defs>
+      <!-- Dot grid -->
+      <div
+        class="absolute inset-0 z-0"
+        style="
+        background:#0d0d14;
+        background-image:radial-gradient(circle,rgba(255,255,255,0.08) 1px,transparent 1px);
+        background-size:28px 28px;
+      "
+      ></div>
 
-        <!-- Dot grid (fixed to viewport, not transformed) -->
-        <rect width="100%" height="100%" fill="url(#dot-grid)" />
+      <!-- Sigma container -->
+      <div bind:this={sigmaContainer} class="absolute inset-0 z-10"></div>
 
-        <!-- Pan+zoom group -->
-        <g transform="translate({tx},{ty}) scale({scale})">
-          <!-- Edges -->
-          {#each simLinks as link}
-            {@const sx = linkX(link.source)}
-            {@const sy = linkY(link.source)}
-            {@const tx2 = linkX(link.target)}
-            {@const ty2 = linkY(link.target)}
-            {@const op = edgeOpacity(link)}
-            {@const col = edgeStroke(link)}
-            {@const lit = op > 0.5}
-            <line
-              x1={sx}
-              y1={sy}
-              x2={tx2}
-              y2={ty2}
-              stroke={col}
-              stroke-opacity={op}
-              stroke-width={lit ? 2 : 1}
-              filter={lit ? "url(#glow-edge)" : undefined}
-            />
-          {/each}
-
-          <!-- Nodes -->
-          {#each simNodes as node (node.id)}
-            {@const r = nodeRadius(node)}
-            {@const op = nodeOpacity(node)}
-            {@const hov = hoveredId === node.id}
-            {@const nb = !!neighborIds?.has(node.id) && !hov}
-            <g
-              transform="translate({node.x ?? 0},{node.y ?? 0})"
-              opacity={op}
-              style="transition:opacity 0.12s"
-            >
-              <!-- Glow halo on hover -->
-              {#if hov}
-                <circle
-                  r={r + 12}
-                  fill={node.hex}
-                  fill-opacity="0.1"
-                  stroke={node.hex}
-                  stroke-opacity="0.2"
-                  stroke-width="1.5"
-                />
-                <circle
-                  r={r + 6}
-                  fill="none"
-                  stroke={node.hex}
-                  stroke-opacity="0.45"
-                  stroke-width="1.2"
-                  filter="url(#glow-node)"
-                />
-              {:else if nb}
-                <circle
-                  r={r + 5}
-                  fill={node.hex}
-                  fill-opacity="0.08"
-                  stroke={node.hex}
-                  stroke-opacity="0.2"
-                  stroke-width="0.8"
-                />
-              {/if}
-
-              <!-- Main circle -->
-              <circle
-                {r}
-                fill={node.hex}
-                fill-opacity={hov ? 1 : nb ? 0.9 : 0.72}
-                stroke="rgba(255,255,255,{hov ? 0.35 : 0.18})"
-                stroke-width={hov ? 1.5 : 0.7}
-                filter={hov ? "url(#glow-node)" : undefined}
-              />
-
-              <!-- Emoji (only when big enough) -->
-              {#if r >= 9 || hov}
-                <text
-                  text-anchor="middle"
-                  dominant-baseline="central"
-                  font-size={Math.min(r * 0.95, 13)}
-                  style="pointer-events:none;user-select:none"
-                  >{node.emoji}</text
-                >
-              {/if}
-
-              <!-- Label -->
-              <text
-                y={r + (scale > 0.8 ? 13 : 10)}
-                text-anchor="middle"
-                fill="white"
-                fill-opacity={hov
-                  ? 1
-                  : nb
-                    ? 0.75
-                    : op < 0.3
-                      ? 0
-                      : scale < 0.35
-                        ? 0
-                        : scale < 0.6
-                          ? 0.4
-                          : 0.55}
-                font-size={Math.max(8, Math.min(12, 10 / scale))}
-                style="pointer-events:none;user-select:none;transition:fill-opacity 0.12s"
-                >{node.title.length > 28
-                  ? node.title.slice(0, 28) + "…"
-                  : node.title}</text
-              >
-            </g>
-          {/each}
-        </g>
-
-        <!-- Vignette overlay -->
-        <rect
-          width="100%"
-          height="100%"
-          fill="url(#vignette)"
-          style="pointer-events:none"
-        />
-      </svg>
+      <!-- Vignette (pointer-events:none passes through to sigma) -->
+      <div
+        class="absolute inset-0 z-20 pointer-events-none"
+        style="
+        background:radial-gradient(ellipse at center,transparent 45%,rgba(13,13,20,0.75) 100%);
+      "
+      ></div>
 
       <!-- Tooltip -->
-      {#if hoveredId}
-        {@const n = nodeMap.get(hoveredId)}
-        {#if n}
+      {#if hoveredNote}
+        {@const ac = accentStyle(hoveredNote.accent)}
+        <div
+          class="absolute z-30 pointer-events-none"
+          style="left:{Math.min(mouseX + 20, 860)}px;top:{Math.max(
+            8,
+            mouseY - 110,
+          )}px"
+        >
           <div
-            class="absolute z-30 pointer-events-none"
-            style="left:{Math.min(
-              tooltipX + 18,
-              (width || 800) - 230,
-            )}px;top:{Math.max(8, tooltipY - 96)}px"
+            class="w-[215px] rounded-xl border border-white/[0.1] shadow-2xl overflow-hidden"
+            style="background:rgba(14,14,22,0.98)"
           >
             <div
-              class="w-[215px] rounded-xl border border-white/[0.1] shadow-2xl overflow-hidden"
-              style="background:rgba(16,16,26,0.97)"
-            >
-              <div
-                class="h-[3px]"
-                style="background:linear-gradient(90deg,{n.hex},{n.hex}88)"
-              ></div>
-              <div class="px-4 py-3">
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="text-base">{n.emoji}</span>
-                  <span
-                    class="text-[10px] font-semibold uppercase tracking-widest"
-                    style="color:{n.hex}">{n.tag}</span
-                  >
-                  <span class="ml-auto text-sm">
-                    {n.status === "seedling"
-                      ? "🌱"
-                      : n.status === "budding"
-                        ? "🌿"
-                        : n.status === "evergreen"
-                          ? "🌲"
-                          : "🍂"}
-                  </span>
-                </div>
-                <p class="text-[13.5px] font-bold text-white leading-snug mb-2">
-                  {n.title}
-                </p>
-                {#if n.degree > 0}
-                  <p class="text-[11px] text-white/45">
-                    {n.degree} connection{n.degree > 1 ? "s" : ""}
-                  </p>
-                {:else}
-                  <p class="text-[11px] text-white/25 italic">No connections</p>
-                {/if}
-                <p
-                  class="text-[10px] text-white/20 mt-2 border-t border-white/[0.06] pt-2"
+              class="h-[3px]"
+              style="background:linear-gradient(90deg,{ac.hex},{ac.hex}66)"
+            ></div>
+            <div class="px-4 py-3">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-base">{hoveredNote.emoji}</span>
+                <span
+                  class="text-[10px] font-semibold uppercase tracking-widest"
+                  style="color:{ac.hex}">{hoveredNote.primaryTag}</span
                 >
-                  Click to open · Drag to reposition
-                </p>
+                <span class="ml-auto text-sm">
+                  {hoveredNote.status === "seedling"
+                    ? "🌱"
+                    : hoveredNote.status === "budding"
+                      ? "🌿"
+                      : hoveredNote.status === "evergreen"
+                        ? "🌲"
+                        : "🍂"}
+                </span>
               </div>
+              <p class="text-[13.5px] font-bold text-white leading-snug mb-2">
+                {hoveredNote.title}
+              </p>
+              {#if (hoveredNote.backlinks?.length ?? 0) > 0}
+                <p class="text-[11px] text-white/45">
+                  {hoveredNote.backlinks.length} connection{hoveredNote
+                    .backlinks.length !== 1
+                    ? "s"
+                    : ""}
+                </p>
+              {:else}
+                <p class="text-[11px] text-white/25 italic">
+                  No connections yet
+                </p>
+              {/if}
+              <p
+                class="text-[10px] text-white/20 mt-2 border-t border-white/[0.06] pt-2"
+              >
+                Click to open · Drag to reposition
+              </p>
             </div>
           </div>
-        {/if}
+        </div>
       {/if}
 
       <!-- Hint -->
       <p
-        class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-white/18 pointer-events-none whitespace-nowrap"
+        class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 text-[10px] text-white/20 pointer-events-none whitespace-nowrap"
       >
         Scroll to zoom · Drag background to pan · Drag nodes to rearrange
       </p>
+
+      <!-- Physics panel -->
+      {#if showPhysics}
+        <div
+          class="absolute top-4 right-4 z-40 w-[220px] rounded-xl border border-white/[0.1] overflow-hidden shadow-2xl"
+          style="background:rgba(14,14,22,0.97)"
+        >
+          <div
+            class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]"
+          >
+            <span
+              class="text-[10px] uppercase tracking-[0.2em] text-white/50 font-medium"
+              >Physics</span
+            >
+            <button
+              on:click={() => (showPhysics = false)}
+              class="text-white/30 hover:text-white/70 text-[18px] leading-none transition-colors"
+              >×</button
+            >
+          </div>
+          <div class="px-4 py-4 space-y-5">
+            <div>
+              <div class="flex justify-between mb-1.5">
+                <label class="text-[11px] text-white/55">Gravity</label>
+                <span class="text-[11px] text-white/35 tabular-nums"
+                  >{gravity}</span
+                >
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="5"
+                step="0.1"
+                bind:value={gravity}
+                on:change={applyPhysics}
+                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
+                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1.5">
+                <label class="text-[11px] text-white/55">Repulsion</label>
+                <span class="text-[11px] text-white/35 tabular-nums"
+                  >{scalingRatio}</span
+                >
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="10"
+                step="0.1"
+                bind:value={scalingRatio}
+                on:change={applyPhysics}
+                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
+                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1.5">
+                <label class="text-[11px] text-white/55">Slow down</label>
+                <span class="text-[11px] text-white/35 tabular-nums"
+                  >{slowDown}</span
+                >
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="20"
+                step="1"
+                bind:value={slowDown}
+                on:change={applyPhysics}
+                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
+                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
+              />
+            </div>
+
+            <button
+              on:click={() => {
+                gravity = 1;
+                scalingRatio = 2;
+                slowDown = 5;
+                applyPhysics();
+              }}
+              class="w-full text-[11px] text-white/35 hover:text-white/65 py-1.5 rounded-lg
+                border border-white/[0.07] hover:border-white/15 transition-all"
+            >
+              Reset defaults
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Tag sidebar -->
     <aside
       class="hidden lg:flex flex-col w-[165px] shrink-0 border-l border-white/[0.06]
-      overflow-y-auto py-4 px-2.5 gap-0.5"
+      overflow-y-auto py-4 px-2.5 gap-0.5 z-10"
       style="background:rgba(13,13,20,0.85)"
     >
       <p
@@ -720,39 +623,35 @@
       </p>
 
       <button
-        class="flex items-center gap-2 px-2 py-1.5 text-[11px] rounded-lg text-left
-          transition-all border"
+        class="flex items-center gap-2 px-2 py-1.5 text-[11px] rounded-lg text-left transition-all border"
         style={!highlightTag
           ? "color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.12)"
           : "color:rgba(255,255,255,0.35);border-color:transparent"}
         on:click={() => (highlightTag = "")}
       >
-        <span class="text-xs">🌿</span>
-        <span>All</span>
-        <span class="ml-auto text-[10px] opacity-50">{nodes.length}</span>
+        <span class="text-xs">🌿</span><span>All</span>
+        <span class="ml-auto text-[10px] opacity-50">{notes.length}</span>
       </button>
 
       {#each allTags as tag}
-        {@const sample = nodes.find((n) => n.tag === tag)}
-        {@const hex = sample?.hex ?? "#b44dff"}
-        {@const emoji = sample?.emoji ?? "·"}
-        {@const count = nodes.filter((n) => n.tag === tag).length}
+        {@const sample = notes.find((n) => n.primaryTag === tag)}
+        {@const hex = accentStyle(sample?.accent ?? "violet").hex}
+        {@const count = notes.filter((n) => n.primaryTag === tag).length}
         {@const active = highlightTag === tag}
         <button
-          class="flex items-center gap-2 px-2 py-1.5 text-[11px] capitalize rounded-lg
-            text-left transition-all border"
+          class="flex items-center gap-2 px-2 py-1.5 text-[11px] capitalize rounded-lg text-left transition-all border"
           style={active
             ? `color:${hex};background:${hex}1a;border-color:${hex}35`
             : "color:rgba(255,255,255,0.38);border-color:transparent"}
           on:click={() => (highlightTag = active ? "" : tag)}
         >
-          <span class="text-xs">{emoji}</span>
+          <span class="text-xs">{sample?.emoji ?? "·"}</span>
           <span class="truncate">{tag}</span>
           <span class="ml-auto text-[10px] opacity-45">{count}</span>
         </button>
       {/each}
 
-      <!-- Node size legend -->
+      <!-- Legend -->
       <div class="mt-auto pt-4 border-t border-white/[0.05] space-y-2.5 px-2">
         <p
           class="text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium"
@@ -760,8 +659,8 @@
           Node size
         </p>
         <div class="flex items-end justify-between">
-          {#each [[0, "Solo"], [3, "Linked"], [7, "Hub"]] as [deg, lbl]}
-            {@const r = Math.max(5, Math.min(20, 5 + Math.sqrt(deg) * 4))}
+          {#each [[0, "Solo"], [4, "Linked"], [10, "Hub"]] as [deg, lbl]}
+            {@const r = nodeSize(deg)}
             <div class="flex flex-col items-center gap-1.5">
               <svg width={r * 2 + 2} height={r * 2 + 2}>
                 <circle
