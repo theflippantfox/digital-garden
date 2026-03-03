@@ -44,7 +44,7 @@
   />
 </svelte:head>
 
-<div class="min-h-full flex flex-col">
+<div class="min-h-full w-full container mx-auto flex flex-col">
   <!-- ── Hero ──────────────────────────────────────────────────────── -->
   <section class="px-6 md:px-14 pt-14 pb-10 md:pt-20 md:pb-14 max-w-[800px]">
     <p
