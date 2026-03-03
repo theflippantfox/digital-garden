@@ -2,17 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
     <meta name="theme-color" content="#080810" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Apple PWA (iOS needs PNG) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Garden" />
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+
+    <!-- Favicon — SVG works everywhere else -->
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+
+    <!-- SEO -->
+    <meta name="description" content="A personal digital garden — living notes, connected ideas." />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,700&family=Epilogue:wght@300;400;500&display=swap"
       rel="stylesheet"
     />
+
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover" class="bg-g-bg text-g-text font-body antialiased">
     <div id="app">%sveltekit.body%</div>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

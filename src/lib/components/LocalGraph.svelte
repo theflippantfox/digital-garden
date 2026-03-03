@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
-  import { ACCENT_STYLES } from "$lib/utils/tagColor";
+  import { browser } from "$app/environment";
+  import { accentStyle } from "$lib/utils/tagColor";
   import type { Note, NoteSummary, Accent } from "$lib/types";
 
   export let note: Note;
@@ -50,7 +51,7 @@
   lNodes.push({
     id: note.slug,
     title: note.title,
-    hex: ACCENT_STYLES[note.accent as Accent]?.hex ?? "#b44dff",
+    hex: accentStyle(note.accent)?.hex ?? "#b44dff",
     emoji: note.emoji,
     isRoot: true,
     x: 0,
@@ -68,7 +69,7 @@
     lNodes.push({
       id: n.slug,
       title: n.title,
-      hex: ACCENT_STYLES[n.accent as Accent]?.hex ?? "#888",
+      hex: accentStyle(n.accent)?.hex ?? "#888",
       emoji: n.emoji,
       isRoot: false,
       x: 0,
@@ -91,8 +92,8 @@
   let simNodes = lNodes;
   let hoveredId: string | null = null;
   let rafId: number;
-  let W = 260,
-    H = 180;
+  let W = 300,
+    H = 240;
 
   // ── Mouse ────────────────────────────────────────────────────────────────────
 
@@ -128,11 +129,19 @@
 
   // ── D3 sim ───────────────────────────────────────────────────────────────────
 
+  function lnkSrc(l: LLink): LNode {
+    return l.source as LNode;
+  }
+  function lnkTgt(l: LLink): LNode {
+    return l.target as LNode;
+  }
+
   onMount(async () => {
+    if (!browser) return;
     const d3 = await import("d3");
 
     W = svgEl.clientWidth || 260;
-    H = svgEl.clientHeight || 180;
+    H = svgEl.clientHeight || 240;
 
     const linkData: LLink[] = lLinks.map((l) => ({ ...l }));
 
@@ -166,11 +175,13 @@
     return () => sim.stop();
   });
 
-  onDestroy(() => cancelAnimationFrame(rafId));
+  onDestroy(() => {
+    if (browser) cancelAnimationFrame(rafId);
+  });
 </script>
 
 <div
-  class="rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
+  class="w-full rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
   border border-white/[0.07] bg-g-surface"
 >
   <!-- Header -->
@@ -190,7 +201,7 @@
 
   {#if !hasConnections}
     <!-- Empty state -->
-    <div class="flex flex-col items-center justify-center h-[140px] gap-2 px-4">
+    <div class="flex flex-col items-center justify-center h-[200px] gap-2 px-4">
       <span class="text-2xl opacity-30">✦</span>
       <p class="text-[11px] text-g-low text-center leading-relaxed">
         No connections yet.<br />
@@ -207,7 +218,7 @@
     <svg
       bind:this={svgEl}
       class="w-full"
-      style="height:180px"
+      style="height:240px"
       on:mousemove={onMouseMove}
       on:mouseleave={onMouseLeave}
       on:click={onClick}
@@ -230,8 +241,8 @@
 
       <!-- Edges -->
       {#each simLinks as link}
-        {@const s = link.source}
-        {@const t = link.target}
+        {@const s = lnkSrc(link)}
+        {@const t = lnkTgt(link)}
         {@const lit = hoveredId === s.id || hoveredId === t.id}
         <line
           x1={s.x ?? W / 2}

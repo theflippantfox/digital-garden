@@ -80,21 +80,20 @@
     <!-- Navigation -->
     <p class="sidebar-label">Garden</p>
     <a
-      href="{base}/"
+      href="/home"
       class="nav-item"
-      class:nav-active={$page.url.pathname === "/" ||
-        $page.url.pathname === base ||
-        $page.url.pathname === base + "/"}
+      class:nav-active={$page.url.pathname === "/home" ||
+        $page.url.pathname === "/home/"}
       on:click={() => dispatch("close")}
     >
       <span>🏡</span>
       <span>Home</span>
     </a>
     <a
-      href="{base}/notes"
+      href="/notes"
       class="nav-item"
-      class:nav-active={$page.url.pathname === base + "/notes" ||
-        $page.url.pathname === base + "/notes/"}
+      class:nav-active={$page.url.pathname === "/notes" ||
+        $page.url.pathname === "/notes/"}
       on:click={() => dispatch("close")}
     >
       <span>🌿</span>
@@ -106,9 +105,9 @@
       </span>
     </a>
     <a
-      href="{base}/notes/index"
+      href="/notes/index"
       class="nav-item"
-      class:nav-active={$page.url.pathname.startsWith(base + "/notes/index")}
+      class:nav-active={$page.url.pathname.startsWith("/notes/index")}
       on:click={() => dispatch("close")}
     >
       <span>🔤</span>
@@ -157,7 +156,7 @@
             {#each tagNotes as note}
               {@const isActive = $page.params.slug === note.slug}
               <a
-                href="{base}/notes/{note.slug}"
+                href="/notes/{note.slug}"
                 class="flex items-center gap-2 px-2 py-1.5 text-[12px] no-underline
                   rounded-[8px_6px_8px_6px/6px_8px_6px_8px]
                   transition-all duration-150 border border-transparent
