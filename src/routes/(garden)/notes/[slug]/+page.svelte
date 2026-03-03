@@ -41,7 +41,7 @@
 <div class="flex gap-0 lg:gap-0 min-h-full">
   <!-- ── Main article ───────────────────────────────────────────── -->
   <article class="flex-1 min-w-0 py-8 md:py-12">
-    <div class="max-w-[980px] mx-auto px-5 md:px-10">
+    <div class="max-w-[680px] mx-auto px-5 md:px-10">
       <!-- Back -->
       <a
         href="{base}/notes"
@@ -159,7 +159,9 @@
     <!-- Sticky wrapper -->
     <div class="sticky top-4 flex flex-col gap-5 w-full">
       <!-- Local graph -->
-      <LocalGraph {note} {allNotes} />
+      {#key note.slug}
+        <LocalGraph {note} {allNotes} />
+      {/key}
 
       <!-- Backlinks -->
       {#if note.backlinks?.length}
