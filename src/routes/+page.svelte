@@ -44,7 +44,7 @@
   />
 </svelte:head>
 
-<div class="min-h-full container mx-auto flex flex-col">
+<div class="min-h-full flex flex-col">
   <!-- ── Hero ──────────────────────────────────────────────────────── -->
   <section class="px-6 md:px-14 pt-14 pb-10 md:pt-20 md:pb-14 max-w-[800px]">
     <p
@@ -78,7 +78,7 @@
 
     <div class="flex flex-wrap gap-3">
       <a
-        href="{base}/notes"
+        href="{base}/home"
         class="inline-flex items-center gap-2 px-6 py-3 font-semibold text-[13px] text-white no-underline
           bg-gradient-to-br from-[#b44dff] to-[#7c3aff]
           hover:from-[#bf5fff] hover:to-[#9148ff]

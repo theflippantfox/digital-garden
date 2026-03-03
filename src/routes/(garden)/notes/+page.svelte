@@ -13,7 +13,7 @@
   let selectedStatuses: NoteStatus[] = [];
 
   // Data arrives server-rendered — no loading state needed
-  $: notes = data.notes as NoteSummary[];
+  $: notes = (data.notes as NoteSummary[]).filter((n) => n.slug !== "home");
   $: allTags =
     (data.allTags as string[]) ??
     [...new Set(notes.flatMap((n) => n.tags))].sort();
