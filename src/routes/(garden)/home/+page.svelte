@@ -39,7 +39,7 @@
 <div class="flex gap-0 lg:gap-0 min-h-full">
   <!-- ── Main article ──────────────────────────────────────────── -->
   <article class="flex-1 min-w-0 py-8 md:py-12">
-    <div class="max-w-[680px] mx-auto px-5 md:px-10">
+    <div class="max-w-[980px] min-w-[980px] mx-auto px-5 md:px-10">
       <!-- Entry point eyebrow — no back button, just a label -->
       <p
         class="text-[10px] uppercase tracking-[0.3em] text-g-low font-medium mb-7
