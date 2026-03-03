@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { base } from "$app/paths";
   import { page } from "$app/stores";
   import { createEventDispatcher } from "svelte";
   import { ACCENT_STYLES, tagToAccent, tagToEmoji } from "$lib/utils/tagColor";
@@ -83,7 +82,7 @@
       href="/home"
       class="nav-item"
       class:nav-active={$page.url.pathname === "/home" ||
-        $page.url.pathname === "/home/"}
+        $page.url.pathname === "/notes/home"}
       on:click={() => dispatch("close")}
     >
       <span>🏡</span>

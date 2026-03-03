@@ -10,7 +10,6 @@
 
   $: note = data.note;
   $: accent = accentStyle(note.accent);
-  // Layout data (all notes) is merged from parent loader
   $: allNotes = (data as any).notes ?? [];
 
   const BADGE_SHAPES: Record<Accent, string> = {
@@ -37,27 +36,15 @@
   <meta name="description" content={note.excerpt} />
 </svelte:head>
 
-<!-- Two-column on xl+, single column below -->
 <div class="flex gap-0 lg:gap-0 min-h-full">
   <!-- ── Main article ───────────────────────────────────────────── -->
   <article class="flex-1 min-w-0 py-8 md:py-12">
-    <div class="max-w-[680px] mx-auto px-5 md:px-10">
-      <!-- Back -->
-      <a
-        href="{base}/notes"
-        class="inline-flex items-center gap-2 text-[12px] text-g-mid font-body font-light
-        px-4 py-2 mb-8 border border-white/[0.07] bg-g-surface no-underline
-        hover:text-[#b44dff] hover:border-[rgba(180,77,255,0.35)] hover:bg-[rgba(180,77,255,0.1)]
-        transition-all duration-150"
-        style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
-        >← back to garden</a
-      >
-
+    <div class="max-w-[980px] mx-auto px-5 md:px-10">
       <!-- Tag + status + date row -->
       <div class="flex flex-wrap items-center gap-2.5 mb-5">
         <span
           class="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-widest uppercase
-          px-3.5 py-1.5 border {accent.text} {accent.border} {accent.bg}"
+            px-3.5 py-1.5 border {accent.text} {accent.border} {accent.bg}"
           style:border-radius={BADGE_SHAPES[note.accent] ?? BADGE_SHAPES.violet}
         >
           <span aria-hidden="true">{note.emoji}</span>
@@ -90,7 +77,7 @@
             <a
               href="{base}/notes?tag={encodeURIComponent(tag)}"
               class="text-[10px] font-medium text-g-low border border-white/[0.07]
-              px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
+                px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
               style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
               >#{tag}</a
             >
@@ -103,24 +90,24 @@
       <!-- Prose body -->
       <div
         class="prose prose-garden prose-invert max-w-none
-      prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tight
-      prose-h2:text-[clamp(18px,3vw,23px)] prose-h2:mt-10 prose-h2:mb-4
-      prose-h3:text-[17px] prose-h3:mt-7 prose-h3:mb-3
-      prose-p:font-light prose-p:leading-[1.85] prose-p:text-g-mid prose-p:text-[14.5px]
-      prose-li:text-g-mid prose-li:font-light
-      prose-pre:text-[13px] prose-pre:leading-relaxed
-    "
+        prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tight
+        prose-h2:text-[clamp(18px,3vw,23px)] prose-h2:mt-10 prose-h2:mb-4
+        prose-h3:text-[17px] prose-h3:mt-7 prose-h3:mb-3
+        prose-p:font-light prose-p:leading-[1.85] prose-p:text-g-mid prose-p:text-[14.5px]
+        prose-li:text-g-mid prose-li:font-light
+        prose-pre:text-[13px] prose-pre:leading-relaxed
+      "
       >
         {@html note.html}
       </div>
 
-      <!-- Backlinks (mobile / tablet only — hidden on xl where right panel shows them) -->
+      <!-- Backlinks (mobile only — hidden on lg where right panel shows them) -->
       {#if note.backlinks?.length}
         <section class="mt-14 lg:hidden" aria-label="Backlinks">
           <h2
             class="text-[9.5px] uppercase tracking-[0.25em] text-g-low mb-4
-          flex items-center gap-3 font-body font-medium
-          after:content-[''] after:flex-1 after:h-px after:bg-white/[0.07]"
+            flex items-center gap-3 font-body font-medium
+            after:content-[''] after:flex-1 after:h-px after:bg-white/[0.07]"
           >
             Backlinks ({note.backlinks.length})
           </h2>
@@ -129,9 +116,9 @@
               <a
                 href="{base}/notes/{bl.slug}"
                 class="flex items-center gap-2.5 px-4 py-3
-                bg-g-surface border border-white/[0.07] text-g-mid text-[12.5px] font-light
-                hover:border-[rgba(180,77,255,0.35)] hover:text-[#b44dff]
-                transition-all duration-150 no-underline"
+                  bg-g-surface border border-white/[0.07] text-g-mid text-[12.5px] font-light
+                  hover:border-[rgba(180,77,255,0.35)] hover:text-[#b44dff]
+                  transition-all duration-150 no-underline"
                 style:border-radius={CHIP_SHAPES[i % CHIP_SHAPES.length]}
               >
                 <span aria-hidden="true" class="text-sm">{bl.emoji}</span>
@@ -146,24 +133,33 @@
         </section>
       {/if}
 
-      <!-- Bottom padding -->
+      <!-- Back button — bottom right -->
+      <div class="flex justify-end mt-10">
+        <button
+          on:click={() => history.back()}
+          class="inline-flex items-center gap-2 text-[12px] text-g-mid font-body font-light
+            px-4 py-2 border border-white/[0.07] bg-g-surface
+            hover:text-[#b44dff] hover:border-[rgba(180,77,255,0.35)] hover:bg-[rgba(180,77,255,0.1)]
+            transition-all duration-150 cursor-pointer"
+          style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
+          >← back</button
+        >
+      </div>
+
       <div class="h-16"></div>
     </div>
   </article>
 
-  <!-- ── Right panel (xl+ only) ─────────────────────────────────── -->
+  <!-- ── Right panel (lg+) ─────────────────────────────────────── -->
   <aside
     class="hidden lg:flex flex-col gap-5 w-[240px] shrink-0 pt-[60px]
     border-l border-white/[0.05] px-4"
   >
-    <!-- Sticky wrapper -->
     <div class="sticky top-4 flex flex-col gap-5 w-full">
-      <!-- Local graph -->
       {#key note.slug}
         <LocalGraph {note} {allNotes} />
       {/key}
 
-      <!-- Backlinks -->
       {#if note.backlinks?.length}
         <div
           class="w-full rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
@@ -176,7 +172,6 @@
               Backlinks · {note.backlinks.length}
             </span>
           </div>
-
           <div class="p-2 flex flex-col gap-1">
             {#each note.backlinks as bl}
               <a
@@ -196,7 +191,6 @@
           </div>
         </div>
       {:else}
-        <!-- No backlinks state -->
         <div
           class="rounded-[12px_10px_12px_10px/10px_12px_10px_12px]
           border border-white/[0.05] bg-g-surface/50 px-4 py-5 text-center"
