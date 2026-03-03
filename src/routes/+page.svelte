@@ -1,15 +1,15 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import { ACCENT_STYLES } from "$lib/utils/tagColor";
+  import { accentStyle } from "$lib/utils/tagColor";
   import type { PageData } from "./$types";
   import type { NoteSummary } from "$lib/types";
 
   export let data: PageData;
 
-  $: notes = data.notes as NoteSummary[];
+  $: notes = (data.notes ?? []) as NoteSummary[];
   $: recentNotes = notes.slice(0, 3);
   $: noteCount = notes.length;
-  $: tagCount = (data.allTags as string[]).length;
+  $: tagCount = ((data.allTags ?? []) as string[]).length;
   $: totalLinks = notes.reduce((s, n) => s + n.links, 0);
 
   const FEATURES = [
@@ -44,7 +44,7 @@
   />
 </svelte:head>
 
-<div class="min-h-full flex flex-col">
+<div class="min-h-full container mx-auto flex flex-col">
   <!-- ── Hero ──────────────────────────────────────────────────────── -->
   <section class="px-6 md:px-14 pt-14 pb-10 md:pt-20 md:pb-14 max-w-[800px]">
     <p
@@ -136,7 +136,7 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {#each recentNotes as note, i}
-          {@const ac = ACCENT_STYLES[note.accent]}
+          {@const ac = accentStyle(note.accent)}
           <a
             href="{base}/notes/{note.slug}"
             class="group relative flex flex-col gap-2.5 p-5 no-underline

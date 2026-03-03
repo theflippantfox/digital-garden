@@ -1,12 +1,3 @@
-/**
- * Layout server load — runs on Cloudflare Pages Functions (SSR).
- *
- * API mode:  fetches notes from the Worker on the server side.
- *            Pages Function → Worker is an internal Cloudflare network hop (~2ms).
- *            The full HTML is rendered before it reaches the browser.
- *
- * Static mode: reads notes from the filesystem at build time (unchanged).
- */
 import { loadAllNotes, toSummary } from '$lib/notes';
 import { API_MODE } from '$lib/api';
 import type { LayoutServerLoad } from './$types';
@@ -21,12 +12,11 @@ export const load: LayoutServerLoad<GardenData> = async ({ fetch }) => {
       const data = await res.json() as GardenData;
       return { notes: data.notes, allTags: data.allTags };
     } catch (err) {
-      console.error('[layout:server] Failed to fetch notes from Worker:', err);
+      console.error('[garden:layout] Failed to fetch notes:', err);
       return { notes: [], allTags: [] };
     }
   }
 
-  // Static / local dev mode
   const notes = loadAllNotes();
   const allTags = [...new Set(notes.flatMap(n => n.tags))].sort();
   return { notes: notes.map(toSummary), allTags };
