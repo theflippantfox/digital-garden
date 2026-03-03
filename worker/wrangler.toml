@@ -2,6 +2,9 @@ name            = "digital-garden-api"
 main            = "src/index.ts"
 compatibility_date = "2024-02-01"
 
+[triggers]
+crons = ["*/5 * * * *"]  # every 5 minutes
+
 # KV namespace for caching compiled notes.
 # Create with: wrangler kv:namespace create "NOTES_CACHE"
 # Then paste the id below.

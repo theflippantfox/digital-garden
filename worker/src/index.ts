@@ -18,7 +18,7 @@ import type { Env, Note, NoteSummary, ApiNotesResponse, ApiNoteResponse } from '
 // ── CORS helper ───────────────────────────────────────────────────────────────
 
 function corsHeaders(request: Request, env: Env): HeadersInit {
-  const origin  = request.headers.get('Origin') ?? '';
+  const origin = request.headers.get('Origin') ?? '';
   const allowed = env.ALLOWED_ORIGINS
     ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
@@ -29,10 +29,10 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
       : allowed[0] ?? '*';
 
   return {
-    'Access-Control-Allow-Origin':  allowOrigin,
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age':       '86400',
+    'Access-Control-Max-Age': '86400',
   };
 }
 
@@ -50,7 +50,7 @@ function notFound(message: string, cors: HeadersInit): Response {
 // ── Cache helpers ─────────────────────────────────────────────────────────────
 
 const KV_KEY_ALL = 'notes:all';
-const KV_KEY_TS  = 'notes:ts';
+const KV_KEY_TS = 'notes:ts';
 
 async function getCachedNotes(env: Env): Promise<Note[] | null> {
   const ttl = parseInt(env.CACHE_TTL ?? '120', 10) * 1000;
@@ -88,9 +88,9 @@ async function fetchAllNotes(env: Env): Promise<Note[]> {
   // Previously this used N+1 REST calls (list dir + one fetch per file), which
   // broke on vaults with 50+ notes due to Cloudflare's subrequest limit.
 
-  const recursive = (env as unknown as Record<string,string>)['NOTES_RECURSIVE'] === 'true';
-  const subdir    = (env as unknown as Record<string,string>)['NOTES_SUBDIR'] ?? '';
-  const branch    = (env as unknown as Record<string,string>)['NOTES_BRANCH'] ?? 'HEAD';
+  const recursive = (env as unknown as Record<string, string>)['NOTES_RECURSIVE'] === 'true';
+  const subdir = (env as unknown as Record<string, string>)['NOTES_SUBDIR'] ?? '';
+  const branch = (env as unknown as Record<string, string>)['NOTES_BRANCH'] ?? 'HEAD';
 
   const noteFiles = recursive
     ? await fetchAllNoteFilesRecursive(env.NOTES_REPO, env.GITHUB_TOKEN, branch)
@@ -118,7 +118,7 @@ export default {
       return new Response(null, { status: 204, headers: cors });
     }
 
-    const url      = new URL(request.url);
+    const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/$/, ''); // strip trailing slash
 
     // ── GET /api/notes ──────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export default {
           await setCachedNotes(env, notes);
         }
 
-        const allTags  = [...new Set(notes.flatMap(n => n.tags))].sort();
+        const allTags = [...new Set(notes.flatMap(n => n.tags))].sort();
         const summaries: NoteSummary[] = notes.map(({ html: _html, ...rest }) => rest);
 
         const body: ApiNotesResponse = {
@@ -200,5 +200,12 @@ export default {
 
     // ── 404 ──────────────────────────────────────────────────────────────────
     return notFound('Not found', cors);
+  },
+
+  // ── Cron keep-alive ────────────────────────────────────────────────────────
+  // Runs every 5 minutes to prevent the isolate from going cold.
+  // Just does a lightweight KV read — enough to keep the Worker warm.
+  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    await env.NOTES_CACHE.get('notes:ts');
   },
 };
