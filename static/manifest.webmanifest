@@ -1,0 +1,38 @@
+{
+  "name": "Digital Garden",
+  "short_name": "Garden",
+  "description": "A personal digital garden — living notes, connected ideas.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080810",
+  "theme_color": "#080810",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "All Notes",
+      "url": "/notes",
+      "description": "Browse all notes"
+    },
+    {
+      "name": "Graph",
+      "url": "/graph",
+      "description": "Explore the knowledge graph"
+    }
+  ],
+  "categories": ["productivity", "education"]
+}
