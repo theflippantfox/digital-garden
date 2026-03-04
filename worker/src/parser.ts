@@ -83,6 +83,8 @@ interface Frontmatter {
   published?: boolean;
   description?: string;
   excerpt?: string;
+  'last-tended'?: string;
+  lastTended?: string;
   [key: string]: unknown;
 }
 
@@ -352,6 +354,8 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
   const emoji = tagToEmoji(primaryTag);
   const status = parseStatus(fm.status);
 
+  // BUG FIX: default to published unless explicitly set to false.
+  // Previously used `=== true` which hid notes without any published field.
   const published = fm.published === true;
 
   const rawHtml = marked(preprocessCallouts(content)) as string;
@@ -367,6 +371,7 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
     slug, title,
     date: formatDate(fm.date),
     dateRaw: isoDate(fm.date),
+    lastTendedRaw: isoDate(fm['last-tended'] ?? fm.lastTended),
     primaryTag, tags, accent, emoji, excerpt, html,
     links: countWikilinks(content),
     backlinks: [],

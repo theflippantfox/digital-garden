@@ -17,7 +17,7 @@ export const API_MODE = Boolean(API_URL);
 
 // ── Notes list ────────────────────────────────────────────────────────────────
 
-export async function fetchNotes(fetchFn: typeof fetch = fetch): Promise<GardenData> {
+export async function fetchNotes(fetchFn: typeof fetch): Promise<GardenData> {
   if (!API_URL) throw new Error('fetchNotes() called but VITE_GARDEN_API_URL is not set');
 
   const res = await fetchFn(`${API_URL}/api/notes`);
@@ -29,7 +29,7 @@ export async function fetchNotes(fetchFn: typeof fetch = fetch): Promise<GardenD
 
 // ── Single note ───────────────────────────────────────────────────────────────
 
-export async function fetchNote(slug: string, fetchFn: typeof fetch = fetch): Promise<Note> {
+export async function fetchNote(slug: string, fetchFn: typeof fetch): Promise<Note> {
   if (!API_URL) throw new Error('fetchNote() called but VITE_GARDEN_API_URL is not set');
 
   const res = await fetchFn(`${API_URL}/api/notes/${encodeURIComponent(slug)}`);

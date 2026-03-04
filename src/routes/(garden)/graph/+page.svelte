@@ -28,7 +28,7 @@
 
   let gravity = 1;
   let scalingRatio = 2;
-  let slowDown = 5;
+  let slowDown = 12;
 
   let hoveredId: string | null = null;
   let mouseX = 0,
@@ -42,6 +42,7 @@
 
   let _hovered: string | null = null;
   let _neighbors: Set<string> = new Set();
+  let _settleTimer: ReturnType<typeof setTimeout> | null = null;
   let _search = "";
   let _tag = "";
 
@@ -53,13 +54,12 @@
 
   // ── Physics ──────────────────────────────────────────────────────────────────
 
-  async function applyPhysics() {
-    if (!graphInst) return;
-    fa2Inst?.kill();
-    const { default: FA2Layout } = await import(
-      "graphology-layout-forceatlas2/worker"
-    );
-    fa2Inst = new FA2Layout(graphInst, {
+  function applyPhysics() {
+    if (!fa2Inst) return;
+    const wasRunning = isRunning;
+    fa2Inst.stop();
+    // Update settings without recreating the worker (preserves node positions)
+    fa2Inst.start({
       settings: {
         gravity,
         scalingRatio,
@@ -68,7 +68,17 @@
         adjustSizes: false,
       },
     });
-    if (isRunning) fa2Inst.start();
+    isRunning = true;
+    // Auto-stop after settling
+    clearTimeout(_settleTimer);
+    _settleTimer = setTimeout(() => {
+      fa2Inst?.stop();
+      isRunning = false;
+    }, 6000);
+    if (!wasRunning) {
+      fa2Inst.stop();
+      isRunning = false;
+    }
   }
 
   function toggleLayout() {
@@ -199,9 +209,9 @@
             res.size = data.size * 1.2;
             res.zIndex = 5;
           } else {
-            res.color = "#1e1e2e";
+            res.color = "rgba(255,255,255,0.07)";
             res.label = "";
-            res.size = data.size * 0.6;
+            res.size = data.size * 0.5;
           }
         }
         if (_search) {
@@ -210,7 +220,7 @@
             (data.label ?? "").toLowerCase().includes(q) ||
             (data.tag ?? "").toLowerCase().includes(q);
           if (!hit) {
-            res.color = "#18182a";
+            res.color = "rgba(255,255,255,0.06)";
             res.label = "";
             res.size = data.size * 0.4;
           } else {
@@ -219,7 +229,7 @@
           }
         }
         if (_tag && data.tag !== _tag) {
-          res.color = "#18182a";
+          res.color = "rgba(255,255,255,0.06)";
           res.label = "";
           res.size = data.size * 0.5;
         }
@@ -232,7 +242,10 @@
           if (graphInst.hasExtremity(edge, _hovered)) {
             res.color = data.activeColor;
             res.size = 2;
-          } else res.hidden = true;
+          } else {
+            res.color = "rgba(255,255,255,0.03)";
+            res.size = 0.5;
+          }
         }
         if (_search || _tag) {
           const [s, t] = graphInst.extremities(edge);
@@ -248,9 +261,14 @@
             _search &&
             !sl.includes(_search.toLowerCase()) &&
             !tl.includes(_search.toLowerCase())
-          )
-            res.hidden = true;
-          if (_tag && sg !== _tag && tg !== _tag) res.hidden = true;
+          ) {
+            res.color = "rgba(255,255,255,0.03)";
+            res.size = 0.5;
+          }
+          if (_tag && sg !== _tag && tg !== _tag) {
+            res.color = "rgba(255,255,255,0.03)";
+            res.size = 0.5;
+          }
         }
         return res;
       },
@@ -279,6 +297,13 @@
     sigmaInst.on("downNode", (e: any) => {
       dragging = true;
       dragNode = e.node;
+      // Lock the node so FA2 skips it, but keeps pulling neighbors toward it
+      graphInst.setNodeAttribute(e.node, "fixed", true);
+      // Ensure FA2 is running so neighbors react
+      if (!fa2Inst.isRunning()) {
+        fa2Inst.start();
+        isRunning = true;
+      }
       e.event.preventSigmaDefault();
       e.event.original?.preventDefault();
     });
@@ -294,6 +319,16 @@
       e.original?.stopPropagation();
     });
     const stopDrag = () => {
+      if (dragNode) {
+        // Unfix the node — let FA2 continue settling it naturally
+        graphInst.setNodeAttribute(dragNode, "fixed", false);
+        // Auto-stop FA2 after things settle
+        clearTimeout(_settleTimer);
+        _settleTimer = setTimeout(() => {
+          fa2Inst?.stop();
+          isRunning = false;
+        }, 3000);
+      }
       dragging = false;
       dragNode = null;
     };
@@ -311,10 +346,16 @@
       },
     });
     fa2Inst.start();
+    // Auto-stop after initial settle so it doesn't jitter forever
+    _settleTimer = setTimeout(() => {
+      fa2Inst?.stop();
+      isRunning = false;
+    }, 8000);
   });
 
   onDestroy(() => {
     if (!browser) return;
+    if (_settleTimer) clearTimeout(_settleTimer);
     fa2Inst?.kill();
     sigmaInst?.kill();
   });

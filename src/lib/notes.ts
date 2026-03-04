@@ -119,6 +119,7 @@ export function loadAllNotes(): Note[] {
       slug, title,
       date: formatDate(fm.date),
       dateRaw: isoDate(fm.date),
+      lastTendedRaw: isoDate(fm['last-tended'] ?? fm.lastTended ?? null),
       primaryTag,
       tags,
       accent,

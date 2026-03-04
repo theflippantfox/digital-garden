@@ -11,9 +11,26 @@
   let searchQuery = "";
   let selectedTags: string[] = [];
   let selectedStatuses: NoteStatus[] = [];
+  let sortBy: "freshly-added" | "last-tended" = "freshly-added";
 
-  // Data arrives server-rendered — no loading state needed
-  $: notes = (data.notes as NoteSummary[]).filter((n) => n.slug !== "home");
+  // Data arrives server-rendered — deduplicate by slug, filter out home
+  $: rawNotes = data.notes as NoteSummary[];
+  $: notes = (() => {
+    const seen = new Set<string>();
+    const deduped = rawNotes.filter((n) => {
+      if (n.slug === "home" || seen.has(n.slug)) return false;
+      seen.add(n.slug);
+      return true;
+    });
+    if (sortBy === "last-tended") {
+      return [...deduped].sort((a, b) =>
+        ((b as any).lastTendedRaw ?? b.dateRaw ?? "").localeCompare(
+          (a as any).lastTendedRaw ?? a.dateRaw ?? "",
+        ),
+      );
+    }
+    return deduped; // already sorted by date from loader
+  })();
   $: allTags =
     (data.allTags as string[]) ??
     [...new Set(notes.flatMap((n) => n.tags))].sort();
@@ -94,6 +111,25 @@
         </div>
         <div class="text-[10px] text-g-low font-light mt-1">{stat.label}</div>
       </div>
+    {/each}
+  </div>
+</div>
+
+<!-- Sort toggle -->
+<div class="px-5 md:px-8 pb-1 flex items-center gap-2">
+  <span class="text-[10px] uppercase tracking-[0.2em] text-g-low font-medium"
+    >Sort</span
+  >
+  <div class="flex gap-1">
+    {#each [{ value: "freshly-added", label: "🌱 Freshly Added" }, { value: "last-tended", label: "🪴 Last Tended" }] as opt}
+      <button
+        on:click={() => (sortBy = opt.value)}
+        class="text-[11px] px-3 py-1 rounded-full border transition-all"
+        style={sortBy === opt.value
+          ? "color:#b44dff;background:rgba(180,77,255,0.1);border-color:rgba(180,77,255,0.35)"
+          : "color:rgba(255,255,255,0.35);border-color:rgba(255,255,255,0.08);"}
+        >{opt.label}</button
+      >
     {/each}
   </div>
 </div>

@@ -1,11 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Deep dark background gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e0a35"/>
+      <stop offset="100%" stop-color="#0a0812"/>
+    </linearGradient>
+
+    <!-- Violet → coral plant gradient -->
+    <linearGradient id="plant" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#b44dff"/>
+      <stop offset="50%" stop-color="#e0428a"/>
       <stop offset="100%" stop-color="#ff5c3a"/>
     </linearGradient>
+
+    <!-- Glow -->
+    <radialGradient id="glow" cx="50%" cy="65%" r="45%">
+      <stop offset="0%" stop-color="#b44dff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#b44dff" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="soft-blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
   </defs>
-  <path d="M16 2C24 2 30 8 30 16C30 24.5 23 30 15 30C7 30 2 24 2 16C2 7.5 8 2 16 2Z" fill="url(#g)"/>
-  <path d="M16 22V12M16 17C16 17 12 14 12 11C12 11 16 11 16 15M16 17C16 17 20 14 20 11C20 11 16 11 16 15"
-    stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+
+  <!-- App icon rounded rect background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- Subtle inner border -->
+  <rect width="32" height="32" rx="7" fill="none" stroke="#b44dff" stroke-opacity="0.12" stroke-width="0.75"/>
+
+  <!-- Glow bloom -->
+  <ellipse cx="16" cy="23" rx="10" ry="5" fill="url(#glow)" filter="url(#soft-blur)"/>
+
+  <!-- Soil line -->
+  <rect x="8" y="23" width="16" height="1.2" rx="0.6" fill="#b44dff" fill-opacity="0.2"/>
+
+  <!-- Stem -->
+  <line x1="16" y1="23" x2="16" y2="12.5"
+    stroke="url(#plant)" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Left leaf — broad, sweeping -->
+  <path d="M15.8 18.5 C14 17.5 11.5 15.8 11 12.5 C13.5 12 15.5 14 15.8 17.5"
+    fill="#b44dff" fill-opacity="0.9"/>
+
+  <!-- Right leaf — higher, coral -->
+  <path d="M16.2 15 C17.5 13.5 20.5 11.5 21 8.5 C18.5 8.5 16.5 10.5 16.2 14"
+    fill="#ff5c3a" fill-opacity="0.88"/>
+
+  <!-- Middle accent leaf -->
+  <path d="M15.9 13 C15 11.5 13.5 10 12.5 8 C14.5 7.5 16.2 9.5 15.9 12.5"
+    fill="#e0428a" fill-opacity="0.7"/>
+
+  <!-- Apex bud -->
+  <circle cx="16" cy="11.5" r="1.8" fill="#ffb84d" fill-opacity="0.92"/>
+  <circle cx="16" cy="11.5" r="0.9" fill="white" fill-opacity="0.55"/>
 </svg>

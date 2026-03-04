@@ -13,10 +13,10 @@ export type Accent =
 export type NoteStatus = 'seedling' | 'budding' | 'evergreen' | 'compost';
 
 export const STATUS_META: Record<NoteStatus, { label: string; icon: string; color: string }> = {
-  seedling:  { label: 'Seedling',  icon: '🌱', color: 'text-emerald-400' },
-  budding:   { label: 'Budding',   icon: '🌿', color: 'text-green-400'   },
-  evergreen: { label: 'Evergreen', icon: '🌲', color: 'text-green-300'   },
-  compost:   { label: 'Compost',   icon: '🍂', color: 'text-amber-600'   },
+  seedling: { label: 'Seedling', icon: '🌱', color: 'text-emerald-400' },
+  budding: { label: 'Budding', icon: '🌿', color: 'text-green-400' },
+  evergreen: { label: 'Evergreen', icon: '🌲', color: 'text-green-300' },
+  compost: { label: 'Compost', icon: '🍂', color: 'text-amber-600' },
 };
 
 export const ALL_STATUSES: NoteStatus[] = ['seedling', 'budding', 'evergreen', 'compost'];
@@ -33,6 +33,7 @@ export interface Note {
   title: string;
   date: string | null;
   dateRaw: string | null;
+  lastTendedRaw: string | null;
   /** Primary tag (first in the tags array) */
   primaryTag: string;
   tags: string[];
