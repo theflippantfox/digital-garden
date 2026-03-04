@@ -9,8 +9,6 @@
 
   export let data: PageData;
 
-  // ── Data ─────────────────────────────────────────────────────────────────────
-
   $: notes = (data.notes ?? []) as NoteSummary[];
   $: allTags = [...new Set(notes.map((n) => n.primaryTag))].sort();
 
@@ -18,7 +16,7 @@
     return Math.max(4, Math.min(20, 4 + Math.sqrt(degree) * 3.5));
   }
 
-  // ── Svelte UI state ──────────────────────────────────────────────────────────
+  // ── UI state ──────────────────────────────────────────────────────────────────
 
   let sigmaContainer: HTMLDivElement;
   let searchQuery = "";
@@ -34,7 +32,7 @@
   let mouseX = 0,
     mouseY = 0;
 
-  // ── Sigma closure state (non-reactive) ───────────────────────────────────────
+  // ── Sigma closure state ───────────────────────────────────────────────────────
 
   let sigmaInst: any = null;
   let graphInst: any = null;
@@ -46,46 +44,53 @@
   let _search = "";
   let _tag = "";
 
+  // Current FA2 settings — always pass these to start() so restarts are consistent
+  function fa2Settings() {
+    return {
+      gravity,
+      scalingRatio,
+      slowDown,
+      barnesHutOptimize: graphInst?.order > 100,
+      adjustSizes: false,
+    };
+  }
+
   $: if (sigmaInst) {
     _search = searchQuery;
     _tag = highlightTag;
     sigmaInst.refresh();
   }
 
-  // ── Physics ──────────────────────────────────────────────────────────────────
+  // ── Physics ───────────────────────────────────────────────────────────────────
+
+  function startFA2(duration = 6000) {
+    if (!fa2Inst) return;
+    fa2Inst.start({ settings: fa2Settings() });
+    isRunning = true;
+    clearTimeout(_settleTimer!);
+    if (duration > 0) {
+      _settleTimer = setTimeout(() => {
+        fa2Inst?.stop();
+        isRunning = false;
+      }, duration);
+    }
+  }
 
   function applyPhysics() {
     if (!fa2Inst) return;
-    const wasRunning = isRunning;
     fa2Inst.stop();
-    // Update settings without recreating the worker (preserves node positions)
-    fa2Inst.start({
-      settings: {
-        gravity,
-        scalingRatio,
-        slowDown,
-        barnesHutOptimize: graphInst.order > 100,
-        adjustSizes: false,
-      },
-    });
-    isRunning = true;
-    // Auto-stop after settling
-    clearTimeout(_settleTimer);
-    _settleTimer = setTimeout(() => {
-      fa2Inst?.stop();
-      isRunning = false;
-    }, 6000);
-    if (!wasRunning) {
-      fa2Inst.stop();
-      isRunning = false;
-    }
+    startFA2(6000);
   }
 
   function toggleLayout() {
     isRunning = !isRunning;
     if (!fa2Inst) return;
-    if (isRunning) fa2Inst.start();
-    else fa2Inst.stop();
+    if (isRunning)
+      startFA2(0); // 0 = run until manually stopped
+    else {
+      fa2Inst.stop();
+      clearTimeout(_settleTimer!);
+    }
   }
 
   function fitView() {
@@ -98,7 +103,7 @@
     sigmaInst?.getCamera().animatedUnzoom({ duration: 200 });
   }
 
-  // ── Mount ────────────────────────────────────────────────────────────────────
+  // ── Mount ──────────────────────────────────────────────────────────────────────
 
   onMount(async () => {
     if (!browser) return;
@@ -120,7 +125,7 @@
     const noteList = (data.notes ?? []) as NoteSummary[];
     const slugSet = new Set(noteList.map((n) => n.slug));
 
-    // Nodes
+    // Nodes — place on circle for stable FA2 start
     noteList.forEach((note, i) => {
       const ac = accentStyle(note.accent);
       const angle = (i / noteList.length) * 2 * Math.PI;
@@ -148,9 +153,9 @@
         edgeSeen.add(key);
         const ac = accentStyle(note.accent);
         graphInst.addEdgeWithKey(key, note.slug, bl.slug, {
-          color: ac.hex + "44",
+          color: ac.hex + "33",
           activeColor: ac.hex + "cc",
-          size: 0.8,
+          size: 1,
         });
         graphInst.setNodeAttribute(
           note.slug,
@@ -174,7 +179,7 @@
       );
     });
 
-    // Sync FA2 initial layout
+    // Sync FA2 initial layout — gives a reasonable starting position
     forceAtlas2.assign(graphInst, {
       iterations: 200,
       settings: {
@@ -186,11 +191,12 @@
       },
     });
 
-    // Sigma
+    // Sigma — note: never use `highlighted: true`, it triggers Sigma's
+    // built-in white ring renderer which blows out the dark theme
     sigmaInst = new Sigma(graphInst, sigmaContainer, {
       renderEdgeLabels: false,
       labelFont: '"Epilogue", sans-serif',
-      labelColor: { color: "rgba(255,255,255,0.8)" },
+      labelColor: { color: "rgba(255,255,255,0.75)" },
       labelSize: 11,
       labelWeight: "500",
       labelRenderedSizeThreshold: 3,
@@ -201,43 +207,51 @@
 
       nodeReducer(node: string, data: any) {
         const res = { ...data };
+
         if (_hovered) {
           if (node === _hovered) {
-            res.size = data.size * 1.7;
+            // Hovered node: brighter, bigger — keep its own accent color
+            res.size = data.size * 1.8;
             res.zIndex = 10;
+            // Lighten the color by blending with white slightly
+            res.color = data.activeColor;
           } else if (_neighbors.has(node)) {
+            // Neighbor: slightly bigger
             res.size = data.size * 1.2;
             res.zIndex = 5;
           } else {
-            res.color = "rgba(255,255,255,0.07)";
+            // Everything else: dim strongly, hide label
+            res.color = "rgba(255,255,255,0.06)";
             res.label = "";
             res.size = data.size * 0.5;
           }
+          return res;
         }
+
         if (_search) {
           const q = _search.toLowerCase();
           const hit =
             (data.label ?? "").toLowerCase().includes(q) ||
             (data.tag ?? "").toLowerCase().includes(q);
           if (!hit) {
-            res.color = "rgba(255,255,255,0.06)";
+            res.color = "rgba(255,255,255,0.05)";
             res.label = "";
             res.size = data.size * 0.4;
-          } else {
-            res.highlighted = true;
-            res.zIndex = (res.zIndex ?? 0) + 5;
           }
         }
+
         if (_tag && data.tag !== _tag) {
-          res.color = "rgba(255,255,255,0.06)";
+          res.color = "rgba(255,255,255,0.05)";
           res.label = "";
           res.size = data.size * 0.5;
         }
+
         return res;
       },
 
       edgeReducer(edge: string, data: any) {
         const res = { ...data };
+
         if (_hovered) {
           if (graphInst.hasExtremity(edge, _hovered)) {
             res.color = data.activeColor;
@@ -246,7 +260,9 @@
             res.color = "rgba(255,255,255,0.03)";
             res.size = 0.5;
           }
+          return res;
         }
+
         if (_search || _tag) {
           const [s, t] = graphInst.extremities(edge);
           const sl = (
@@ -257,24 +273,22 @@
           ).toLowerCase();
           const sg = graphInst.getNodeAttribute(s, "tag") ?? "";
           const tg = graphInst.getNodeAttribute(t, "tag") ?? "";
-          if (
-            _search &&
-            !sl.includes(_search.toLowerCase()) &&
-            !tl.includes(_search.toLowerCase())
-          ) {
-            res.color = "rgba(255,255,255,0.03)";
-            res.size = 0.5;
-          }
-          if (_tag && sg !== _tag && tg !== _tag) {
+          const hitSearch =
+            !_search ||
+            sl.includes(_search.toLowerCase()) ||
+            tl.includes(_search.toLowerCase());
+          const hitTag = !_tag || sg === _tag || tg === _tag;
+          if (!hitSearch || !hitTag) {
             res.color = "rgba(255,255,255,0.03)";
             res.size = 0.5;
           }
         }
+
         return res;
       },
     });
 
-    // Events
+    // ── Hover ──────────────────────────────────────────────────────────────────
     sigmaInst.on("enterNode", ({ node }: { node: string }) => {
       _hovered = node;
       _neighbors = new Set(graphInst.neighbors(node));
@@ -287,30 +301,51 @@
       hoveredId = null;
       sigmaInst.refresh();
     });
-    sigmaInst.on("clickNode", ({ node }: { node: string }) =>
-      goto(`${base}/notes/${node}`),
-    );
 
-    // Drag
+    // ── Drag ───────────────────────────────────────────────────────────────────
+    // Track drag distance to distinguish click from drag
     let dragNode: string | null = null;
-    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let hasDragged = false; // true once mouse moved >4px during a downNode session
+
     sigmaInst.on("downNode", (e: any) => {
-      dragging = true;
       dragNode = e.node;
-      // Lock the node so FA2 skips it, but keeps pulling neighbors toward it
+      hasDragged = false;
+      dragStartX = e.event.x;
+      dragStartY = e.event.y;
+
+      // Fix the node so FA2 skips its own position update for it,
+      // but still applies forces FROM it to neighbors
       graphInst.setNodeAttribute(e.node, "fixed", true);
-      // Ensure FA2 is running so neighbors react
+
+      // Ensure FA2 is running so neighbors react immediately
+      // Always pass settings so the worker doesn't reset to defaults
       if (!fa2Inst.isRunning()) {
-        fa2Inst.start();
+        fa2Inst.start({ settings: fa2Settings() });
         isRunning = true;
+        clearTimeout(_settleTimer!);
       }
+
       e.event.preventSigmaDefault();
       e.event.original?.preventDefault();
     });
+
     sigmaInst.getMouseCaptor().on("mousemovebody", (e: any) => {
       mouseX = e.x ?? 0;
       mouseY = e.y ?? 0;
-      if (!dragging || !dragNode) return;
+
+      if (!dragNode) return;
+
+      // Mark as dragged once we've moved more than 4px
+      if (!hasDragged) {
+        const dx = (e.x ?? 0) - dragStartX;
+        const dy = (e.y ?? 0) - dragStartY;
+        if (Math.sqrt(dx * dx + dy * dy) > 4) hasDragged = true;
+      }
+
+      if (!hasDragged) return;
+
       const pos = sigmaInst.viewportToGraph(e);
       graphInst.setNodeAttribute(dragNode, "x", pos.x);
       graphInst.setNodeAttribute(dragNode, "y", pos.y);
@@ -318,44 +353,37 @@
       e.original?.preventDefault();
       e.original?.stopPropagation();
     });
+
     const stopDrag = () => {
       if (dragNode) {
-        // Unfix the node — let FA2 continue settling it naturally
         graphInst.setNodeAttribute(dragNode, "fixed", false);
-        // Auto-stop FA2 after things settle
-        clearTimeout(_settleTimer);
+        // Let FA2 settle neighbors for 3s after release
+        clearTimeout(_settleTimer!);
         _settleTimer = setTimeout(() => {
           fa2Inst?.stop();
           isRunning = false;
         }, 3000);
       }
-      dragging = false;
       dragNode = null;
     };
+
     sigmaInst.getMouseCaptor().on("mouseup", stopDrag);
     sigmaInst.getMouseCaptor().on("mouseleave", stopDrag);
 
-    // FA2 worker
-    fa2Inst = new FA2Layout(graphInst, {
-      settings: {
-        gravity,
-        scalingRatio,
-        slowDown,
-        barnesHutOptimize: graphInst.order > 100,
-        adjustSizes: false,
-      },
+    // ── Click — only navigate if we didn't drag ────────────────────────────────
+    sigmaInst.on("clickNode", ({ node }: { node: string }) => {
+      if (hasDragged) return; // swallow click if this was a drag
+      goto(`${base}/notes/${node}`);
     });
-    fa2Inst.start();
-    // Auto-stop after initial settle so it doesn't jitter forever
-    _settleTimer = setTimeout(() => {
-      fa2Inst?.stop();
-      isRunning = false;
-    }, 8000);
+
+    // ── FA2 worker ─────────────────────────────────────────────────────────────
+    fa2Inst = new FA2Layout(graphInst, { settings: fa2Settings() });
+    startFA2(8000); // run for 8s initially, then pause
   });
 
   onDestroy(() => {
     if (!browser) return;
-    if (_settleTimer) clearTimeout(_settleTimer);
+    clearTimeout(_settleTimer!);
     fa2Inst?.kill();
     sigmaInst?.kill();
   });
@@ -473,10 +501,14 @@
       "
       ></div>
 
-      <!-- Sigma container -->
-      <div bind:this={sigmaContainer} class="absolute inset-0 z-10"></div>
+      <!-- Sigma container — transparent bg so dot grid shows through -->
+      <div
+        bind:this={sigmaContainer}
+        class="absolute inset-0 z-10"
+        style="background:transparent"
+      ></div>
 
-      <!-- Vignette (pointer-events:none passes through to sigma) -->
+      <!-- Vignette -->
       <div
         class="absolute inset-0 z-20 pointer-events-none"
         style="
@@ -537,7 +569,7 @@
               <p
                 class="text-[10px] text-white/20 mt-2 border-t border-white/[0.06] pt-2"
               >
-                Click to open · Drag to reposition
+                Click to open · Drag to rearrange
               </p>
             </div>
           </div>
@@ -571,74 +603,44 @@
             >
           </div>
           <div class="px-4 py-4 space-y-5">
-            <div>
-              <div class="flex justify-between mb-1.5">
-                <label class="text-[11px] text-white/55">Gravity</label>
-                <span class="text-[11px] text-white/35 tabular-nums"
-                  >{gravity}</span
-                >
+            {#each [{ label: "Gravity", val: gravity, min: 0.1, max: 5, step: 0.1, key: "gravity" }, { label: "Repulsion", val: scalingRatio, min: 0.1, max: 10, step: 0.1, key: "scalingRatio" }, { label: "Slow down", val: slowDown, min: 1, max: 20, step: 1, key: "slowDown" }] as s}
+              <div>
+                <div class="flex justify-between mb-1.5">
+                  <label class="text-[11px] text-white/55">{s.label}</label>
+                  <span class="text-[11px] text-white/35 tabular-nums"
+                    >{s.val}</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  min={s.min}
+                  max={s.max}
+                  step={s.step}
+                  value={s.key === "gravity"
+                    ? gravity
+                    : s.key === "scalingRatio"
+                      ? scalingRatio
+                      : slowDown}
+                  on:input={(e) => {
+                    const v = parseFloat(e.currentTarget.value);
+                    if (s.key === "gravity") gravity = v;
+                    if (s.key === "scalingRatio") scalingRatio = v;
+                    if (s.key === "slowDown") slowDown = v;
+                  }}
+                  on:change={applyPhysics}
+                  class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
+                    [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
+                    [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                min="0.1"
-                max="5"
-                step="0.1"
-                bind:value={gravity}
-                on:change={applyPhysics}
-                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
-                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
-                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
-              />
-            </div>
-
-            <div>
-              <div class="flex justify-between mb-1.5">
-                <label class="text-[11px] text-white/55">Repulsion</label>
-                <span class="text-[11px] text-white/35 tabular-nums"
-                  >{scalingRatio}</span
-                >
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="10"
-                step="0.1"
-                bind:value={scalingRatio}
-                on:change={applyPhysics}
-                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
-                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
-                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
-              />
-            </div>
-
-            <div>
-              <div class="flex justify-between mb-1.5">
-                <label class="text-[11px] text-white/55">Slow down</label>
-                <span class="text-[11px] text-white/35 tabular-nums"
-                  >{slowDown}</span
-                >
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="20"
-                step="1"
-                bind:value={slowDown}
-                on:change={applyPhysics}
-                class="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
-                  [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full
-                  [&::-webkit-slider-thumb]:bg-[#b44dff] [&::-webkit-slider-thumb]:cursor-pointer"
-              />
-            </div>
+            {/each}
 
             <button
               on:click={() => {
                 gravity = 1;
                 scalingRatio = 2;
-                slowDown = 5;
+                slowDown = 12;
                 applyPhysics();
               }}
               class="w-full text-[11px] text-white/35 hover:text-white/65 py-1.5 rounded-lg
@@ -692,7 +694,6 @@
         </button>
       {/each}
 
-      <!-- Legend -->
       <div class="mt-auto pt-4 border-t border-white/[0.05] space-y-2.5 px-2">
         <p
           class="text-[9px] uppercase tracking-[0.2em] text-white/30 font-medium"

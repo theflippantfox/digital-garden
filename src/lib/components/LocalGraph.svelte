@@ -11,9 +11,7 @@
 
   // ── Build local subgraph ──────────────────────────────────────────────────────
 
-  // Incoming: notes that link to this note (backlinks)
   const incomingSlugs = new Set(note.backlinks.map((bl) => bl.slug));
-  // Outgoing: notes this note links to (notes whose backlinks include current slug)
   const outgoingSlugs = new Set(
     allNotes
       .filter(
@@ -27,12 +25,8 @@
   const hasConnections = neighborSlugs.size > 0;
   const noteMap = new Map(allNotes.map((n) => [n.slug, n]));
 
-  // ── Component state ───────────────────────────────────────────────────────────
-
   let container: HTMLDivElement;
   let sigmaInst: any = null;
-
-  // ── Mount ─────────────────────────────────────────────────────────────────────
 
   onMount(async () => {
     if (!browser || !hasConnections) return;
@@ -45,17 +39,17 @@
       ]);
 
     const graph = new Graph({ type: "undirected", multi: false });
+    const rootAc = accentStyle(note.accent);
 
     // Root node
-    const rootAc = accentStyle(note.accent);
     graph.addNode(note.slug, {
       label: note.title,
       x: 0,
       y: 0,
-      size: 10,
+      size: 11,
       color: rootAc.hex,
+      activeColor: rootAc.hex,
       isRoot: true,
-      emoji: note.emoji,
     });
 
     // Neighbor nodes
@@ -63,44 +57,45 @@
       const n = noteMap.get(slug);
       if (!n) continue;
       const ac = accentStyle(n.accent);
+      // Spread on a circle around root
+      const angle = (graph.order / neighborSlugs.size) * 2 * Math.PI;
       graph.addNode(slug, {
         label: n.title,
-        x: Math.random() * 100 - 50,
-        y: Math.random() * 100 - 50,
-        size: 6,
+        x: Math.cos(angle) * 60,
+        y: Math.sin(angle) * 60,
+        size: 7,
         color: ac.hex,
+        activeColor: ac.hex,
         isRoot: false,
-        emoji: n.emoji,
       });
       graph.addEdge(note.slug, slug, {
-        color: rootAc.hex + "55",
-        activeColor: rootAc.hex + "bb",
-        size: 0.8,
+        color: rootAc.hex + "44",
+        activeColor: rootAc.hex + "cc",
+        size: 1,
       });
     }
 
-    // Run FA2 synchronously — small graph, no need for worker
+    // Synchronous FA2 — small graph, instant
     forceAtlas2.assign(graph, {
-      iterations: 120,
+      iterations: 150,
       settings: {
         gravity: 2,
-        scalingRatio: 1.5,
-        slowDown: 5,
+        scalingRatio: 2,
+        slowDown: 8,
         adjustSizes: false,
       },
     });
 
-    // Sigma
     let _hovered: string | null = null;
 
     sigmaInst = new Sigma(graph, container, {
       renderEdgeLabels: false,
       labelFont: '"Epilogue", sans-serif',
-      labelColor: { color: "rgba(255,255,255,0.75)" },
+      labelColor: { color: "rgba(255,255,255,0.7)" },
       labelSize: 9,
       labelWeight: "500",
-      labelRenderedSizeThreshold: -Infinity, // always show labels at this scale
-      stagePadding: 20,
+      labelRenderedSizeThreshold: -Infinity,
+      stagePadding: 16,
       minCameraRatio: 0.5,
       maxCameraRatio: 4,
       enableEdgeEvents: false,
@@ -110,14 +105,15 @@
         if (_hovered) {
           if (node === _hovered) {
             res.size = data.size * 1.6;
+            res.color = data.activeColor; // keep accent color, just bigger
             res.zIndex = 10;
           } else if (graph.areNeighbors(_hovered, node)) {
             res.size = data.size * 1.2;
             res.zIndex = 5;
           } else {
-            res.color = "#1e1e2e";
+            res.color = "rgba(255,255,255,0.06)";
             res.label = "";
-            res.size = data.size * 0.7;
+            res.size = data.size * 0.65;
           }
         }
         return res;
@@ -125,30 +121,47 @@
 
       edgeReducer(edge: string, data: any) {
         const res = { ...data };
-        if (_hovered && graph.hasExtremity(edge, _hovered)) {
-          res.color = data.activeColor;
-          res.size = 1.5;
-        } else if (_hovered) {
-          res.hidden = true;
+        if (_hovered) {
+          if (graph.hasExtremity(edge, _hovered)) {
+            res.color = data.activeColor;
+            res.size = 2;
+          } else {
+            res.color = "rgba(255,255,255,0.04)";
+            res.size = 0.5;
+          }
         }
         return res;
       },
     });
 
-    // Hover
     sigmaInst.on("enterNode", ({ node }: { node: string }) => {
       _hovered = node;
+      container.style.cursor = graph.getNodeAttribute(node, "isRoot")
+        ? "default"
+        : "pointer";
       sigmaInst.refresh();
     });
     sigmaInst.on("leaveNode", () => {
       _hovered = null;
+      container.style.cursor = "default";
       sigmaInst.refresh();
     });
 
-    // Click neighbor → navigate
-    sigmaInst.on("clickNode", ({ node }: { node: string }) => {
-      if (node !== note.slug) goto(`${base}/notes/${node}`);
+    // Click neighbor → navigate (root node does nothing)
+    let hasDragged = false;
+    sigmaInst.getMouseCaptor().on("mousemovebody", () => {
+      hasDragged = true;
     });
+    sigmaInst.on("downNode", () => {
+      hasDragged = false;
+    });
+    sigmaInst.on("clickNode", ({ node }: { node: string }) => {
+      if (hasDragged) return;
+      if (!graph.getNodeAttribute(node, "isRoot"))
+        goto(`${base}/notes/${node}`);
+    });
+
+    return () => sigmaInst?.kill();
   });
 
   onDestroy(() => {
@@ -160,7 +173,6 @@
   class="w-full rounded-[12px_10px_12px_10px/10px_12px_10px_12px] overflow-hidden
   border border-white/[0.07] bg-g-surface"
 >
-  <!-- Header -->
   <div
     class="flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.06]"
   >
@@ -189,7 +201,7 @@
   {:else}
     <div
       bind:this={container}
-      style="width:100%;height:220px;background:#131320"
+      style="width:100%;height:220px;background:transparent"
     ></div>
   {/if}
 </div>
