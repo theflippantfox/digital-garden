@@ -1,15 +1,3 @@
-/**
- * GitHub data fetching — uses the GraphQL API to retrieve ALL note contents
- * in a SINGLE subrequest, regardless of vault size.
- *
- * Why GraphQL instead of the REST Contents API:
- *   - REST: 1 request to list files + 1 request per file = N+1 subrequests
- *   - GraphQL: 1 request returns every file name AND content at once = 1 subrequest
- *
- * Cloudflare Workers cap subrequests at 50 (free) / 1000 (paid) per invocation.
- * A vault with 51+ notes would silently fail with the old approach.
- */
-
 const GH_GRAPHQL = 'https://api.github.com/graphql';
 
 function graphqlHeaders(token: string): HeadersInit {
@@ -147,8 +135,8 @@ export async function fetchAllNoteFiles(
 
   for (const entry of entries) {
     if (entry.type === 'blob' &&
-        entry.name.endsWith('.md') &&
-        entry.object.__typename === 'Blob') {
+      entry.name.endsWith('.md') &&
+      entry.object.__typename === 'Blob') {
       const blob = entry.object as GQLBlob;
       if (!blob.isBinary && blob.text !== null) {
         files.push({ name: entry.name, path: entry.path, text: blob.text });

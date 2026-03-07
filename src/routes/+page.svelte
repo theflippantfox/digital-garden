@@ -5,6 +5,7 @@
   import type { NoteSummary } from "$lib/types";
 
   export let data: PageData;
+  export let params: Record<string, string> = {};
 
   $: notes = (data.notes ?? []) as NoteSummary[];
   $: recentNotes = notes.slice(0, 3);
@@ -44,7 +45,7 @@
   />
 </svelte:head>
 
-<div class="min-h-full w-full container mx-auto flex flex-col">
+<div class="min-h-full flex flex-col">
   <!-- ── Hero ──────────────────────────────────────────────────────── -->
   <section class="px-6 md:px-14 pt-14 pb-10 md:pt-20 md:pb-14 max-w-[800px]">
     <p

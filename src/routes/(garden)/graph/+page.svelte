@@ -122,7 +122,15 @@
 
     graphInst = new Graph({ type: "undirected", multi: false });
 
-    const noteList = (data.notes ?? []) as NoteSummary[];
+    // Deduplicate by slug — layout can deliver the same note twice if both
+    // +page.server.ts and +layout.server.ts load notes independently
+    const rawList = (data.notes ?? []) as NoteSummary[];
+    const seen = new Set<string>();
+    const noteList = rawList.filter((n) => {
+      if (seen.has(n.slug)) return false;
+      seen.add(n.slug);
+      return true;
+    });
     const slugSet = new Set(noteList.map((n) => n.slug));
 
     // Nodes — place on circle for stable FA2 start

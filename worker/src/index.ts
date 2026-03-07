@@ -85,8 +85,6 @@ async function bustCache(env: Env): Promise<void> {
 
 async function fetchAllNotes(env: Env): Promise<Note[]> {
   // Use GraphQL to fetch ALL notes in a single subrequest — no matter vault size.
-  // Previously this used N+1 REST calls (list dir + one fetch per file), which
-  // broke on vaults with 50+ notes due to Cloudflare's subrequest limit.
 
   const recursive = (env as unknown as Record<string, string>)['NOTES_RECURSIVE'] === 'true';
   const subdir = (env as unknown as Record<string, string>)['NOTES_SUBDIR'] ?? '';

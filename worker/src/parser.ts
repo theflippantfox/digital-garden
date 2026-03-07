@@ -331,11 +331,11 @@ function parseStatus(raw: string | undefined): NoteStatus {
 export function parseNoteFile(filename: string, rawContent: string, allSlugs: string[]): Note {
   const { data: fm, content } = parseFrontmatter(rawContent);
 
-  // BUG FIX: use filename as fallback for title so it's never empty
+  // FIX: use filename as fallback for title so it's never empty
   const titleFromFile = filename.replace(/\.md$/i, '');
   const title = (fm.title && String(fm.title).trim()) || titleFromFile;
 
-  // BUG FIX: if slug resolves to empty string (title had only special chars),
+  // FIX: if slug resolves to empty string (title had only special chars),
   // fall back to the filename-derived slug so we never get an empty route
   const slugFromTitle = (fm.slug && String(fm.slug).trim()) || titleToSlug(title);
   const slugFromFile = titleToSlug(titleFromFile);
@@ -354,14 +354,13 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
   const emoji = tagToEmoji(primaryTag);
   const status = parseStatus(fm.status);
 
-  // BUG FIX: default to published unless explicitly set to false.
-  // Previously used `=== true` which hid notes without any published field.
+  // FIX: default to published unless explicitly set to false.
   const published = fm.published === true;
 
   const rawHtml = marked(preprocessCallouts(content)) as string;
   const html = resolveWikilinks(rawHtml, allSlugs);
 
-  // BUG FIX: decode HTML entities so excerpts show plain text, not &amp; &#39; etc.
+  // FIX: decode HTML entities so excerpts show plain text, not &amp; &#39; etc.
   const descRaw = fm.description ?? fm.excerpt;
   const excerpt = (descRaw && String(descRaw).trim())
     ? decodeEntities(String(descRaw))

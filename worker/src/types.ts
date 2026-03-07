@@ -47,14 +47,7 @@ export interface Env {
   NOTES_REPO: string;
   ALLOWED_ORIGINS: string;
   CACHE_TTL: string;
-  // Optional — set in wrangler.toml [vars]
   NOTES_SUBDIR?: string;
   NOTES_BRANCH?: string;
   NOTES_RECURSIVE?: string;
 }
-
-// Optional worker env overrides (set in wrangler.toml [vars])
-// NOTES_SUBDIR    - subdirectory in repo containing notes, e.g. "notes" or ""
-// NOTES_BRANCH    - git branch to read, default "HEAD"
-// NOTES_RECURSIVE - set "true" to use deep recursive fetch (2 subrequests instead of 1)
-//                   needed only if notes are nested more than 1 folder deep

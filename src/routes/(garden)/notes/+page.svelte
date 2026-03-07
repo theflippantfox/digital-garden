@@ -7,6 +7,7 @@
   import type { NoteSummary, NoteStatus } from "$lib/types";
 
   export let data: PageData;
+  export let params: Record<string, string> = {};
 
   let searchQuery = "";
   let selectedTags: string[] = [];

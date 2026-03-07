@@ -7,6 +7,7 @@
   import type { Accent } from "$lib/types";
 
   export let data: PageData;
+  export let params: Record<string, string> = {};
 
   $: note = data.note;
   $: accent = accentStyle(note.accent);
@@ -39,7 +40,7 @@
 <div class="flex gap-0 lg:gap-0 min-h-full">
   <!-- ── Main article ───────────────────────────────────────────── -->
   <article class="flex-1 min-w-0 py-8 md:py-12">
-    <div class="max-w-[980px] mx-auto px-5 md:px-10">
+    <div class="max-w-[680px] mx-auto px-5 md:px-10">
       <!-- Tag + status + date row -->
       <div class="flex flex-wrap items-center gap-2.5 mb-5">
         <span
@@ -134,7 +135,7 @@
       {/if}
 
       <!-- Back button — bottom right -->
-      <div class="flex mt-6">
+      <div class="flex justify-end mt-10">
         <button
           on:click={() => history.back()}
           class="inline-flex items-center gap-2 text-[12px] text-g-mid font-body font-light

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "../app.css";
   import Blobs from "$lib/components/Blobs.svelte";
   import Topbar from "$lib/components/Topbar.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
@@ -7,12 +8,18 @@
   import type { LayoutData } from "./$types";
 
   export let data: LayoutData;
+  export let params: Record<string, string> = {}; // suppress SvelteKit internal prop warning
 
   let sidebarOpen = false;
   $: if ($page.url) sidebarOpen = false;
 
+  // Notes come directly from the SSR layout load — no promise pattern needed
   $: notes = data.notes ?? [];
   $: isOnGraph = $page.url.pathname.endsWith("/graph");
+  $: isOnHome =
+    $page.url.pathname === "/" ||
+    $page.url.pathname === base ||
+    $page.url.pathname === base + "/";
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") sidebarOpen = false;
@@ -50,7 +57,7 @@
   </div>
 </div>
 
-{#if !isOnGraph}
+{#if !isOnGraph && !isOnHome}
   <a
     href="{base}/graph"
     class="fixed bottom-6 right-6 z-30 w-12 h-12 text-white font-bold text-base
