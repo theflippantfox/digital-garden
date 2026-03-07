@@ -336,9 +336,9 @@ export function extractSlug(filename: string, rawContent: string): string {
   const { data: fm } = parseFrontmatter(rawContent);
   const titleFromFile = filename.replace(/\.md$/i, '');
   const title = (fm.title && String(fm.title).trim()) || titleFromFile;
-  const slugFromTitle = (fm.slug && String(fm.slug).trim()) || titleToSlug(title);
-  const slugFromFile = titleToSlug(titleFromFile);
-  return slugFromTitle || slugFromFile || titleFromFile;
+  // Priority: explicit slug → filename → title
+  if (fm.slug && String(fm.slug).trim()) return String(fm.slug).trim();
+  return titleToSlug(titleFromFile) || titleToSlug(title) || titleFromFile;
 }
 
 export function parseNoteFile(filename: string, rawContent: string, allSlugs: string[]): Note {
@@ -348,11 +348,9 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
   const titleFromFile = filename.replace(/\.md$/i, '');
   const title = (fm.title && String(fm.title).trim()) || titleFromFile;
 
-  // FIX: if slug resolves to empty string (title had only special chars),
-  // fall back to the filename-derived slug so we never get an empty route
-  const slugFromTitle = (fm.slug && String(fm.slug).trim()) || titleToSlug(title);
+  // Priority: explicit slug → filename → title
   const slugFromFile = titleToSlug(titleFromFile);
-  const slug = slugFromTitle || slugFromFile || filename.replace(/\.md$/i, '');
+  const slug = (fm.slug && String(fm.slug).trim()) || slugFromFile || titleToSlug(title) || filename.replace(/\.md$/i, '');
 
   // Tags — handle both inline [a, b] and Obsidian block sequence format
   const rawTags = fm.tags;

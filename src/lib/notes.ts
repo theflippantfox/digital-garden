@@ -83,7 +83,9 @@ export function loadAllNotes(): Note[] {
     const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf-8');
     const { data } = matter(raw);
     const title = (data.title as string | undefined) ?? path.basename(f, '.md');
-    return (data.slug as string | undefined) ?? titleToSlug(title);
+    // Priority: explicit slug → filename → title
+    const filenameSlug = titleToSlug(path.basename(f, '.md'));
+    return (data.slug as string | undefined) ?? filenameSlug || titleToSlug(title);
   });
 
   // Pass 2: full parse
@@ -93,7 +95,8 @@ export function loadAllNotes(): Note[] {
 
     const titleFromFile = path.basename(filename, '.md');
     const title = (fm.title as string | undefined) ?? titleFromFile;
-    const slug = (fm.slug as string | undefined) ?? titleToSlug(title);
+    // Priority: explicit slug → filename → title
+    const slug = (fm.slug as string | undefined) ?? titleToSlug(titleFromFile) || titleToSlug(title);
 
     // Tags — first tag is the primary; fall back to a 'general' tag
     const rawTags = fm.tags as string[] | string | undefined;
