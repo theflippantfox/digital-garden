@@ -11,7 +11,7 @@
  *   notes:ts                → ISO timestamp of last fetch
  */
 
-import { parseNoteFile, attachBacklinks, titleToSlug } from './parser';
+import { parseNoteFile, attachBacklinks, titleToSlug, extractSlug } from './parser';
 import { fetchAllNoteFiles, fetchAllNoteFilesRecursive } from './github';
 import type { Env, Note, NoteSummary, ApiNotesResponse, ApiNoteResponse } from './types';
 
@@ -85,6 +85,8 @@ async function bustCache(env: Env): Promise<void> {
 
 async function fetchAllNotes(env: Env): Promise<Note[]> {
   // Use GraphQL to fetch ALL notes in a single subrequest — no matter vault size.
+  // Previously this used N+1 REST calls (list dir + one fetch per file), which
+  // broke on vaults with 50+ notes due to Cloudflare's subrequest limit.
 
   const recursive = (env as unknown as Record<string, string>)['NOTES_RECURSIVE'] === 'true';
   const subdir = (env as unknown as Record<string, string>)['NOTES_SUBDIR'] ?? '';
@@ -94,8 +96,10 @@ async function fetchAllNotes(env: Env): Promise<Note[]> {
     ? await fetchAllNoteFilesRecursive(env.NOTES_REPO, env.GITHUB_TOKEN, branch)
     : await fetchAllNoteFiles(env.NOTES_REPO, env.GITHUB_TOKEN, branch, subdir);
 
-  // Collect slugs first for wikilink resolution
-  const allSlugs = noteFiles.map(f => titleToSlug(f.name.replace(/\.md$/i, '')));
+  // Collect slugs first for wikilink resolution.
+  // MUST mirror parseNoteFile's slug logic (title-derived, not filename-derived)
+  // so that wikilink hrefs match the actual note slugs and don't 404.
+  const allSlugs = noteFiles.map(f => extractSlug(f.name, f.text));
 
   // Parse synchronously — all content is already in memory, no more I/O
   const notes = noteFiles.map(f => parseNoteFile(f.name, f.text, allSlugs));
@@ -199,10 +203,6 @@ export default {
     // ── 404 ──────────────────────────────────────────────────────────────────
     return notFound('Not found', cors);
   },
-
-  // ── Cron keep-alive ────────────────────────────────────────────────────────
-  // Runs every 5 minutes to prevent the isolate from going cold.
-  // Just does a lightweight KV read — enough to keep the Worker warm.
 
   // ── Cron keep-alive ────────────────────────────────────────────────────────
   // Runs every 5 minutes to keep both this Worker and the Pages Function warm.

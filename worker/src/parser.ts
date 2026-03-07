@@ -328,6 +328,19 @@ function parseStatus(raw: string | undefined): NoteStatus {
 
 // ── Main parse function ───────────────────────────────────────────────────────
 
+/**
+ * Extract the slug for a note file — mirrors parseNoteFile's slug logic exactly.
+ * Use this for the allSlugs first-pass so wikilink hrefs match actual note slugs.
+ */
+export function extractSlug(filename: string, rawContent: string): string {
+  const { data: fm } = parseFrontmatter(rawContent);
+  const titleFromFile = filename.replace(/\.md$/i, '');
+  const title = (fm.title && String(fm.title).trim()) || titleFromFile;
+  const slugFromTitle = (fm.slug && String(fm.slug).trim()) || titleToSlug(title);
+  const slugFromFile = titleToSlug(titleFromFile);
+  return slugFromTitle || slugFromFile || titleFromFile;
+}
+
 export function parseNoteFile(filename: string, rawContent: string, allSlugs: string[]): Note {
   const { data: fm, content } = parseFrontmatter(rawContent);
 
