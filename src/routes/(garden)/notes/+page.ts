@@ -1,7 +1,8 @@
 import type { PageLoad } from './$types';
 
-// No ssr:false — data arrives from the server layout load.
-export const load: PageLoad = async ({ parent }) => {
+export const load: PageLoad = async ({ parent, url }) => {
   const { notes, allTags } = await parent();
-  return { notes, allTags };
+  const view = (url.searchParams.get('view') ?? 'grid') as 'grid' | 'index';
+  const page = Number(url.searchParams.get('page') ?? '1');
+  return { notes, allTags, view, page };
 };

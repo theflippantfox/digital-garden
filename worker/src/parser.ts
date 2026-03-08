@@ -386,6 +386,8 @@ export function parseNoteFile(filename: string, rawContent: string, allSlugs: st
     links: countWikilinks(content),
     backlinks: [],
     status, published,
+    noteType: (fm.type as string | undefined) ?? null,
+    subtype: (fm.subtype as string | undefined) ?? null,
   };
 }
 

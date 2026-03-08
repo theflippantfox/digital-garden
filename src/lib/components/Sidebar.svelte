@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { base } from "$app/paths";
   import { page } from "$app/stores";
   import { createEventDispatcher } from "svelte";
   import { ACCENT_STYLES, tagToAccent, tagToEmoji } from "$lib/utils/tagColor";
@@ -79,20 +80,20 @@
     <!-- Navigation -->
     <p class="sidebar-label">Garden</p>
     <a
-      href="/home"
+      href="{base}/home"
       class="nav-item"
-      class:nav-active={$page.url.pathname === "/home" ||
-        $page.url.pathname === "/notes/home"}
+      class:nav-active={$page.url.pathname === base + "/home" ||
+        $page.url.pathname === base + "/notes/home"}
       on:click={() => dispatch("close")}
     >
       <span>🏡</span>
       <span>Home</span>
     </a>
     <a
-      href="/notes"
+      href="{base}/notes"
       class="nav-item"
-      class:nav-active={$page.url.pathname === "/notes" ||
-        $page.url.pathname === "/notes/"}
+      class:nav-active={$page.url.pathname === base + "/notes" ||
+        $page.url.pathname === base + "/notes/"}
       on:click={() => dispatch("close")}
     >
       <span>🌿</span>
@@ -102,15 +103,6 @@
       >
         {totalNotes}
       </span>
-    </a>
-    <a
-      href="/notes/index"
-      class="nav-item"
-      class:nav-active={$page.url.pathname.startsWith("/notes/index")}
-      on:click={() => dispatch("close")}
-    >
-      <span>🔤</span>
-      <span>A → Z Index</span>
     </a>
 
     <!-- Tags with expandable note lists -->
@@ -155,7 +147,7 @@
             {#each tagNotes as note}
               {@const isActive = $page.params.slug === note.slug}
               <a
-                href="/notes/{note.slug}"
+                href="{base}/notes/{note.slug}"
                 class="flex items-center gap-2 px-2 py-1.5 text-[12px] no-underline
                   rounded-[8px_6px_8px_6px/6px_8px_6px_8px]
                   transition-all duration-150 border border-transparent

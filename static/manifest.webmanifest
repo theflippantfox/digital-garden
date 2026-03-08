@@ -1,0 +1,70 @@
+{
+  "name": "Digital Garden",
+  "short_name": "Garden",
+  "description": "A personal digital garden \u2014 living notes, connected ideas.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d14",
+  "theme_color": "#0d0d14",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "All Notes",
+      "url": "/notes",
+      "description": "Browse all notes"
+    },
+    {
+      "name": "Graph",
+      "url": "/graph",
+      "description": "Explore the knowledge graph"
+    },
+    {
+      "name": "Writing",
+      "url": "/writing",
+      "description": "Creative writing"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "education"
+  ]
+}

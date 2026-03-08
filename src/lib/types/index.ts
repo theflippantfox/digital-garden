@@ -45,6 +45,10 @@ export interface Note {
   backlinks: NoteBacklink[];
   status: NoteStatus;
   published: boolean;
+  /** 'creative' for writing section, undefined/absent for garden notes */
+  noteType: string | null;
+  /** poem | story | essay | long-form — used for rendering hints */
+  subtype: string | null;
 }
 
 /** Lean note — no HTML body, used on garden index */

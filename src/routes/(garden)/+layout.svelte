@@ -1,5 +1,4 @@
 <script lang="ts">
-  import "../app.css";
   import Blobs from "$lib/components/Blobs.svelte";
   import Topbar from "$lib/components/Topbar.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";

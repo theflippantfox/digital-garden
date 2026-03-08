@@ -1,4 +1,4 @@
-const CACHE = 'garden-v1';
+const CACHE = 'garden-v2';
 
 // Assets that should always be cached
 const PRECACHE = [
@@ -6,8 +6,8 @@ const PRECACHE = [
   '/notes',
   '/manifest.webmanifest',
   '/favicon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
 ];
 
 // Install: precache shell assets
