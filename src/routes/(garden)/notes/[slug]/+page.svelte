@@ -42,51 +42,53 @@
   <article class="flex-1 min-w-0 py-8 md:py-12">
     <div class="max-w-[980px] mx-auto px-5 md:px-10">
       <!-- Tag + status + date row -->
-      <div class="flex flex-wrap items-center gap-2.5 mb-5">
-        <span
-          class="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-widest uppercase
+      {#if note.title != "Home"}
+        <div class="flex flex-wrap items-center gap-2.5 mb-5">
+          <span
+            class="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-widest uppercase
             px-3.5 py-1.5 border {accent.text} {accent.border} {accent.bg}"
-          style:border-radius={BADGE_SHAPES[note.accent] ?? BADGE_SHAPES.violet}
-        >
-          <span aria-hidden="true">{note.emoji}</span>
-          {note.primaryTag}
-        </span>
-
-        <StatusBadge status={note.status} size="md" />
-
-        {#if note.date}
-          <time
-            class="text-[11.5px] text-g-low font-light"
-            datetime={note.dateRaw ?? undefined}
+            style:border-radius={BADGE_SHAPES[note.accent] ??
+              BADGE_SHAPES.violet}
           >
-            {note.date}
-          </time>
-        {/if}
-      </div>
+            <span aria-hidden="true">{note.emoji}</span>
+            {note.primaryTag}
+          </span>
 
-      <!-- Title -->
-      <h1
-        class="font-display font-black text-[clamp(26px,5vw,46px)] tracking-[-1.5px] leading-[1.05] text-g-text mb-6"
-      >
-        {note.title}
-      </h1>
+          <StatusBadge status={note.status} size="md" />
 
-      <!-- Tags -->
-      {#if note.tags.length > 1}
-        <div class="flex flex-wrap gap-1.5 mb-8">
-          {#each note.tags as tag}
-            <a
-              href="{base}/notes?tag={encodeURIComponent(tag)}"
-              class="text-[10px] font-medium text-g-low border border-white/[0.07]
-                px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
-              style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
-              >#{tag}</a
+          {#if note.date}
+            <time
+              class="text-[11.5px] text-g-low font-light"
+              datetime={note.dateRaw ?? undefined}
             >
-          {/each}
+              {note.date}
+            </time>
+          {/if}
         </div>
-      {/if}
 
-      <hr class="border-none h-px bg-white/[0.07] mb-8" />
+        <!-- Title -->
+        <h1
+          class="font-display font-black text-[clamp(1.6em,5vw,2em)] tracking-[-1.5px] leading-[1.05] text-g-text mb-6"
+        >
+          {note.title}
+        </h1>
+
+        <!-- Tags -->
+        {#if note.tags.length > 1}
+          <div class="flex flex-wrap gap-1.5 mb-8">
+            {#each note.tags as tag}
+              <a
+                href="{base}/notes?tag={encodeURIComponent(tag)}"
+                class="text-[10px] font-medium text-g-low border border-white/[0.07]
+                px-2.5 py-0.5 hover:text-g-mid hover:border-white/20 transition-colors no-underline capitalize"
+                style="border-radius: 50px 48px 50px 48px / 48px 50px 48px 50px"
+                >#{tag}</a
+              >
+            {/each}
+          </div>
+        {/if}
+        <hr class="border-none h-px bg-white/[0.07] mb-8" />
+      {/if}
 
       <!-- Prose body -->
       <div

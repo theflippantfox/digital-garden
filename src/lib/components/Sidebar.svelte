@@ -25,9 +25,11 @@
   $: tagGroups = (() => {
     const map = new Map<string, NoteSummary[]>();
     for (const note of notes) {
-      const t = note.primaryTag || "general";
-      if (!map.has(t)) map.set(t, []);
-      map.get(t)!.push(note);
+      if (note.title != "Home") {
+        const t = note.primaryTag || "general";
+        if (!map.has(t)) map.set(t, []);
+        map.get(t)!.push(note);
+      }
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   })();
