@@ -35,11 +35,11 @@
   // Link strength / distance: edge-spring stiffness and rest length.
   // Damping: velocity decay per tick (< 1 = dissipation).
   // Orphan ring: target orbit radius for degree-0 nodes.
-  let pCenterGravity = 0.018; // much stronger inward pull → tight central ball
-  let pDegreeGravScale = 0.04; // moderate degree bonus — hubs go deeper but not extreme
+  let pCenterGravity = 0.008; // much stronger inward pull → tight central ball
+  let pDegreeGravScale = 0.02; // moderate degree bonus — hubs go deeper but not extreme
   let pRepelStrength = 380; // lower repulsion → nodes pack densely like Obsidian
   let pLinkStrength = 0.22; // stiffer edge springs → tight dandelion clusters
-  let pLinkDistance = 52; // shorter rest length → compact branch clusters
+  let pLinkDistance = 30; // shorter rest length → compact branch clusters
   let pDamping = 0.86; // slightly higher → settles faster, less bounce
   let pOrphanRing = 420; // larger ring → orphans clearly outside the main blob
 
@@ -284,7 +284,7 @@
       label: "Center gravity",
       hint: "Base spring toward origin",
       min: 0.001,
-      max: 0.025,
+      max: 0.01,
       step: 0.001,
       get: () => pCenterGravity,
       set: (v: number) => {
@@ -294,8 +294,8 @@
     {
       label: "Degree scale",
       hint: "Extra gravity per link (hubs↓)",
-      min: 0,
-      max: 0.2,
+      min: 0.01,
+      max: 0.1,
       step: 0.01,
       get: () => pDegreeGravScale,
       set: (v: number) => {
@@ -306,8 +306,8 @@
       label: "Repulsion",
       hint: "Charge pushback between nodes",
       min: 100,
-      max: 2500,
-      step: 50,
+      max: 500,
+      step: 25,
       get: () => pRepelStrength,
       set: (v: number) => {
         pRepelStrength = v;
