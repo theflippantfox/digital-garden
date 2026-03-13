@@ -153,7 +153,7 @@
 
   <!-- ── Right panel (lg+) ─────────────────────────────────────── -->
   <aside
-    class="hidden lg:flex flex-col gap-5 w-[240px] shrink-0 pt-[60px]
+    class="hidden lg:flex flex-col gap-5 w-[320px] shrink-0 pt-[60px]
     border-l border-white/[0.05] px-4"
   >
     <div class="sticky top-4 flex flex-col gap-5 w-full">
