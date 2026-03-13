@@ -12,10 +12,10 @@
   $: notes = (data.notes ?? []) as NoteSummary[];
   $: allTags = [...new Set(notes.map((n) => n.primaryTag))].sort();
 
-  // Node size: +1.4 px per link, capped at 22 px.
-  // (Roughly "~1.1% of max per connection" as requested — reaches max at ~13 links.)
+  // Obsidian uses very small nodes — base 2.5 px, +0.6 px per link, max 10 px.
+  // Hubs are visibly larger but the scale is subtle, not dramatic.
   function nodeSize(degree: number): number {
-    return Math.min(4 + degree * 1.4, 22);
+    return Math.min(2.5 + degree * 0.6, 10);
   }
 
   // ─── UI state ─────────────────────────────────────────────────────────────────
@@ -35,13 +35,13 @@
   // Link strength / distance: edge-spring stiffness and rest length.
   // Damping: velocity decay per tick (< 1 = dissipation).
   // Orphan ring: target orbit radius for degree-0 nodes.
-  let pCenterGravity = 0.006;
-  let pDegreeGravScale = 0.07;
-  let pRepelStrength = 900;
-  let pLinkStrength = 0.12;
-  let pLinkDistance = 90;
-  let pDamping = 0.82;
-  let pOrphanRing = 320;
+  let pCenterGravity = 0.018; // much stronger inward pull → tight central ball
+  let pDegreeGravScale = 0.04; // moderate degree bonus — hubs go deeper but not extreme
+  let pRepelStrength = 380; // lower repulsion → nodes pack densely like Obsidian
+  let pLinkStrength = 0.22; // stiffer edge springs → tight dandelion clusters
+  let pLinkDistance = 52; // shorter rest length → compact branch clusters
+  let pDamping = 0.86; // slightly higher → settles faster, less bounce
+  let pOrphanRing = 420; // larger ring → orphans clearly outside the main blob
 
   let hoveredId: string | null = null;
   let selectedId: string | null = null;
@@ -460,9 +460,9 @@
       const targetR =
         deg === 0
           ? pOrphanRing // orphans start at the ring
-          : Math.max(28, 240 / Math.sqrt(deg + 1)); // hubs near centre
+          : Math.max(15, 140 / Math.sqrt(deg + 1)); // hubs near centre, tighter initial spread
       const angle = (i / noteList.length) * 2 * Math.PI;
-      const jitter = (Math.random() - 0.5) * 30; // break perfect symmetry
+      const jitter = (Math.random() - 0.5) * 20; // break perfect symmetry
       graphInst.addNode(note.slug, {
         label: note.title,
         x: Math.cos(angle) * (targetR + jitter),
@@ -983,7 +983,7 @@
             Degree
           </p>
           <div class="flex items-end justify-between">
-            {#each [[0, "Solo"], [5, "Linked"], [13, "Hub"]] as [deg, lbl]}
+            {#each [[0, "Solo"], [5, "Linked"], [12, "Hub"]] as [deg, lbl]}
               {@const r = nodeSize(+deg)}
               <div class="flex flex-col items-center gap-1.5">
                 <svg width={r * 2 + 2} height={r * 2 + 2}>
@@ -1249,13 +1249,13 @@
             {/each}
             <button
               on:click={() => {
-                pCenterGravity = 0.006;
-                pDegreeGravScale = 0.07;
-                pRepelStrength = 900;
-                pLinkStrength = 0.12;
-                pLinkDistance = 90;
-                pDamping = 0.82;
-                pOrphanRing = 320;
+                pCenterGravity = 0.018;
+                pDegreeGravScale = 0.04;
+                pRepelStrength = 380;
+                pLinkStrength = 0.22;
+                pLinkDistance = 52;
+                pDamping = 0.86;
+                pOrphanRing = 420;
                 applyPhysics();
               }}
               class="w-full text-[11px] text-white/28 hover:text-white/58 py-1.5 rounded-lg border border-white/[0.07] hover:border-white/14 transition-all"
