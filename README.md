@@ -1,4 +1,4 @@
-# 🌿 Digital Garden
+# Digital Garden
 
 A SvelteKit + TypeScript + Tailwind digital garden. Notes live in a **private** repo; only the compiled static site is public.
 
@@ -23,10 +23,3 @@ published: true                  # false to hide
 
 Note content. Use [[Wikilinks]] to link notes.
 ```
-
-Colours and emojis are auto-generated from tags — no manual configuration needed.
-
-## Docs
-
-- **[PUBLISHING.md](./PUBLISHING.md)** — full step-by-step guide to deploying on GitHub Pages
-- **[API-MODE.md](./API-MODE.md)** — how to serve notes dynamically (no rebuild on update)
